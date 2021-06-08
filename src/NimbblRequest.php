@@ -6,8 +6,6 @@ use Requests;
 use Requests_Auth;
 use Exception;
 use Requests_Hooks;
-// use Razorpay\Api\Errors;
-// use Razorpay\Api\Errors\ErrorCode;
 
 
 // Available since PHP 5.5.19 and 5.6.3
