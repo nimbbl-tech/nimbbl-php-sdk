@@ -79,7 +79,11 @@ class NimbblRequest
 
         $headers = $this->getRequestHeaders();
 
-        $response = Requests::request($url, $headers, json_encode($data), $method, $options);
+        if (strtolower($method) === 'post') {
+            $data = json_encode($data);
+        }
+
+        $response = Requests::request($url, $headers, $data, $method, $options);
 
         // $this->checkErrors($response);
 
