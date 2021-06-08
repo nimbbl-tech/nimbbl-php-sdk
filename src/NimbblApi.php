@@ -4,7 +4,7 @@ namespace Nimbbl\Api;
 
 class NimbblApi
 {
-    protected static $baseUrl = 'https://uatapi.nimbbl.tech/api/';
+    protected static $baseUrl = 'https://api.nimbbl.tech/api/';
 
     protected static $key;
 
