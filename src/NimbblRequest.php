@@ -79,7 +79,7 @@ class NimbblRequest
 
         $headers = $this->getRequestHeaders();
 
-        $response = Requests::request($url, $headers, $data, $method, $options);
+        $response = Requests::request($url, $headers, json_encode($data), $method, $options);
 
         // $this->checkErrors($response);
 

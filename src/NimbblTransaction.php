@@ -4,11 +4,11 @@ namespace Nimbbl\Api;
 
 use JsonSerializable;
 
-class NimbblOrder extends NimbblEntity implements JsonSerializable
+class NimbblTransaction extends NimbblEntity implements JsonSerializable
 {
     public static function entityClass()
     {
-        return 'Nimbbl\\Api\\NimbblOrder';
+        return 'Nimbbl\\Api\\NimbblTransaction';
     }
 
     /**
@@ -17,7 +17,7 @@ class NimbblOrder extends NimbblEntity implements JsonSerializable
     public function retrieveOne($id)
     {
         $nimbblRequest = new NimbblRequest();
-        $oneEntity = $nimbblRequest->request('GET', 'orders/one/' . $id);
+        $oneEntity = $nimbblRequest->request('GET', 'transactions/one/' . $id);
         $loadedEntity = $this->fillOne($oneEntity);
         $this->attributes = $loadedEntity->attributes;
         $this->error = $loadedEntity->error;
@@ -28,7 +28,7 @@ class NimbblOrder extends NimbblEntity implements JsonSerializable
     {
         $f = base64_encode($this->buildHttpQuery($options));
         $nimbblRequest = new NimbblRequest();
-        $manyEntities = $nimbblRequest->request('GET', 'orders/many?f=' . $f . '&pt=no');
+        $manyEntities = $nimbblRequest->request('GET', 'transactions/many?f=' . $f . '&pt=no');
 
         $users = array();
         foreach ($manyEntities['items'] as $idx => $oneEntity) {
@@ -43,22 +43,7 @@ class NimbblOrder extends NimbblEntity implements JsonSerializable
 
     public function create($attributes = array())
     {
-        $nimbblRequest = new NimbblRequest();
-        $createdEntity = $nimbblRequest->request('POST', 'v2/create-order', $attributes);
-
-        $newCreatedEntity = new NimbblOrder();
-        if (key_exists('error', $createdEntity)) {
-            $newCreatedEntity->error = $createdEntity['error'];
-        }
-        else {
-            $attributes = array();
-            foreach ($createdEntity as $key => $value) {
-                $attributes[$key] = $value;
-            }
-            $newCreatedEntity->attributes = $attributes;
-        }
-
-        return $newCreatedEntity;
+        throw new Exception("Unsupported operation.");
     }
 
     public function edit($attributes = null)

@@ -6,9 +6,9 @@ class NimbblApi
 {
     protected static $baseUrl = 'https://uatapi.nimbbl.tech/api/';
 
-    protected static $key = 'access_key_1MwvMkKkweorz0ry';
+    protected static $key;
 
-    protected static $secret = 'access_secret_81x7ByYkRpB4g05N';
+    protected static $secret;
 
     /*
      * App info is to store the Plugin/integration
@@ -68,7 +68,7 @@ class NimbblApi
      */
     public function __get($name)
     {
-        $className = __NAMESPACE__ . '\\' . ucwords($name);
+        $className = __NAMESPACE__ . '\\Nimbbl' . ucwords($name);
 
         $entity = new $className();
 
