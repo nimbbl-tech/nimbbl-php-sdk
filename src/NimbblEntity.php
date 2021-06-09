@@ -21,6 +21,8 @@ abstract class NimbblEntity implements JsonSerializable
     {
         if ($key === 'error') {
             return $this->error;
+        } else if ($key === 'attributes') {
+            return $this->attributes;
         } else {
             return $this->attributes[$key];
         }
