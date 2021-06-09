@@ -15,26 +15,26 @@ if (defined('CURL_SSLVERSION_TLSv1_1') === false) {
 }
 
 
-class NimbblAuth implements Requests_Auth
-{
-    protected $token;
-    protected $accessSecret;
+// class NimbblAuth implements Requests_Auth
+// {
+//     protected $token;
+//     protected $accessSecret;
 
-    public function __construct($token)
-    {
-        $this->token = $token;
-    }
+//     public function __construct($token)
+//     {
+//         $this->token = $token;
+//     }
 
-    public function register(Requests_Hooks $hooks)
-    {
-        $hooks->register('requests.before_request', array($this, 'before_request'));
-    }
+//     public function register(Requests_Hooks $hooks)
+//     {
+//         $hooks->register('requests.before_request', array($this, 'before_request'));
+//     }
 
-    public function before_request(&$url, &$headers, &$data, &$type, &$options)
-    {
-        $headers['Authorization'] = 'Bearer ' . $this->token;
-    }
-}
+//     public function before_request(&$url, &$headers, &$data, &$type, &$options)
+//     {
+//         $headers['Authorization'] = 'Bearer ' . $this->token;
+//     }
+// }
 
 /**
  * Request class to communicate to the request libarary
@@ -70,12 +70,13 @@ class NimbblRequest
 
         // TODO: FIXME instead of using normal auth we have to use token auth.
         $options = [
-            'auth' => new NimbblAuth($tokenResponseBody['token']),
+            // 'auth' => new NimbblAuth($tokenResponseBody['token']),
             'hook' => $hooks,
             'timeout' => 60,
         ];
 
         $headers = $this->getRequestHeaders();
+        $headers['Authorization'] = 'Bearer ' . $tokenResponseBody['token'];
 
         if (strtolower($method) === 'post') {
             $data = json_encode($data);
