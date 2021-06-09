@@ -11,14 +11,14 @@ class NimbblUtility
         $actualSignature = $attributes['nimbbl_signature'];
         $transactionId = $attributes['nimbbl_transaction_id'];
 
-        if (isset($attributes['nimbbl_order_id']) === true) {
+        if (isset($attributes['merchant_order_id']) === true) {
             $orderId = $attributes['merchant_order_id'];
             $payload = $orderId . '|' . $transactionId;
         } else {
             throw new NimbblError('merchant_order_id must be present.', NimbblErrorCode::SERVER_ERROR, 500);
         }
         $secret = NimbblApi::getSecret();
-        return self->verifySignature($payload, $actualSignature, $secret);
+        return $this->verifySignature($payload, $actualSignature, $secret);
     }
 
     public function verifySignature($payload, $actualSignature, $secret)
