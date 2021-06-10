@@ -2,7 +2,7 @@
 
 namespace Nimbbl\Api;
 
-class NimbblUtility
+class NimbblUtil
 {
     const SHA256 = 'sha256';
 
