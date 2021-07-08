@@ -89,6 +89,40 @@ class NimbblRequest
         return json_decode($response->body, true);
     }
 
+    public function universalRequest($method, $url, $data = array())
+    {
+        $url = NimbblApi::getFullUrl($url);
+
+        $hooks = new Requests_Hooks();
+
+        $hooks->register('curl.before_send', array($this, 'setCurlSslOpts'));
+
+        $tokenResponse = Requests::post(NimbblApi::getTokenEndpoint(), ['Content-Type' => 'application/json'], json_encode(['access_key' => NimbblApi::getKey(), 'access_secret' => NimbblApi::getSecret()]));
+        $tokenResponseBody = json_decode($tokenResponse->body, true);
+        $nimbblKey = md5($tokenResponseBody['token']);
+        $sub_merchant = $tokenResponseBody['auth_principal']['sub_merchant_id'];
+        // TODO: FIXME instead of using normal auth we have to use token auth.
+        $options = [
+            // 'auth' => new NimbblAuth($tokenResponseBody['token']),
+            'hook' => $hooks,
+            'timeout' => 60,
+        ];
+
+        $headers = $this->getRequestHeaders();
+        $headers['Authorization'] = 'Bearer ' . $tokenResponseBody['token'];
+        $headers['x-nimbbl-key'] = $sub_merchant . '-' . $nimbblKey;
+
+        if (strtolower($method) === 'post') {
+            $data = json_encode($data);
+        }
+
+        $response = Requests::request($url, $headers, $data, $method, $options);
+
+        // $this->checkErrors($response);
+
+        return json_decode($response->body, true);
+    }
+
     public function setCurlSslOpts($curl)
     {
         curl_setopt($curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_1);
