@@ -44,6 +44,7 @@ abstract class NimbblEntity implements JsonSerializable
 
     protected function fillOne($oneEntity)
     {
+        $nimbblSegment = new NimbblSegment();
         $class = static::entityClass();
         $entity = new $class;
 

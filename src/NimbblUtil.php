@@ -18,17 +18,50 @@ class NimbblUtil
             throw new NimbblError('merchant_order_id must be present.', NimbblErrorCode::SERVER_ERROR, 500);
         }
         $secret = NimbblApi::getSecret();
-        return $this->verifySignature($payload, $actualSignature, $secret);
+
+        return $this->verifySignature($payload, $actualSignature, $secret, $attributes);
     }
 
-    public function verifySignature($payload, $actualSignature, $secret)
+    public function verifySignature($payload, $actualSignature, $secret, $attributes)
     {
+        $nimbblSegment = new NimbblSegment();
         $expectedSignature = hash_hmac(self::SHA256, $payload, $secret);
         if (function_exists('hash_equals')) {
             $verified = hash_equals($expectedSignature, $actualSignature);
         } else {
             $verified = $this->hashEquals($expectedSignature, $actualSignature);
         }
+
+        if($verified){
+            $nimbblSegment->track(array(
+                "userId" => NimbblApi::getKey(),
+                "event" => "Response Validated",
+                "properties" => [
+                  "order_id" => $attributes['merchant_order_id'],
+                  "transaction_id" => $attributes['nimbbl_transaction_id'],
+                  "status" => "match",
+                  "merchant_id" => NimbblApi::getMerchantId(),
+                  "signature_status" => "match",
+                  "kit_name" => 'psp-sdk',
+                  'kit_version' => 1
+                ],
+            ));
+        }else{
+            $nimbblSegment->track(array(
+                "userId" => NimbblApi::getKey(),
+                "event" => "Response Validated",
+                "properties" => [
+                    "order_id" => $attributes['merchant_order_id'],
+                    "transaction_id" => $attributes['nimbbl_transaction_id'],
+                    "status" => "mismatch",
+                    "merchant_id" => NimbblApi::getMerchantId(),
+                    "signature_status" => "mismatch",
+                    "kit_name" => 'psp-sdk',
+                    'kit_version' => 1
+                ],
+            ));
+        }
+        
         return $verified;
     }
 

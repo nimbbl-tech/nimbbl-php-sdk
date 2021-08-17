@@ -54,21 +54,45 @@ class NimbblTransaction extends NimbblEntity implements JsonSerializable
     public function transactionEnquiry($attributes = array())
     {
         $nimbblRequest = new NimbblRequest();
-        $response = $nimbblRequest->universalRequest('POST', 'v2/transaction-enquiry', $attributes);
-        $loadedResponse = $this->fillOne($response);
-        $this->attributes = $loadedResponse->attributes;
-        $this->error = $loadedResponse->error;
-        return $this;
-    }
+        $nimbblSegment = new NimbblSegment();
 
-    public function initiateRefund($attributes = array())
-    {
-        $nimbblRequest = new NimbblRequest();
-        $response = $nimbblRequest->universalRequest('POST', 'v2/refund', $attributes);
-        $loadedResponse = $this->fillOne($response);
-        $this->attributes = $loadedResponse->attributes;
-        $this->error = $loadedResponse->error;
-        return $this;
+        $nimbblSegment->track(array(
+            "userId" => NimbblApi::getKey(),
+            "event" => "Enquiry Submitted",
+            "properties" => [
+                "order_id" => $attributes['order_id'],
+                "transaction_id" => $attributes['transaction_id'],
+                "merchant_id" => NimbblApi::getMerchantId(),
+                "kit_name" => 'psp-sdk',
+                'kit_version' => 1
+            ],
+        ));
+
+        $response = $nimbblRequest->universalRequest('POST', 'v2/transaction-enquiry', $attributes);
+        $newResponse = new NimbblTransaction();
+        if (key_exists('error', $response)) {
+            $newResponse->error = $createdEntity['error'];
+        }
+        else {
+            $nimbblSegment->track(array(
+                "userId" => NimbblApi::getKey(),
+                "event" => "Enquiry Received",
+                "properties" => [
+                    "order_id" => $response['nimbbl_order_id'],
+                    "transaction_id" => $response['nimbbl_transaction_id'],
+                    "merchant_id" => NimbblApi::getMerchantId(),
+                    "status" => $response['status'],
+                    "kit_name" => 'psp-sdk',
+                    'kit_version' => 1
+                ],
+            ));
+            $attributes = array();
+            foreach ($response as $key => $value) {
+                $attributes[$key] = $value;
+            }
+            $newResponse->attributes = $attributes;
+        }
+        return $newResponse;
     }
 
     public function retrieveTransactionByOrderId($id)
@@ -85,43 +109,5 @@ class NimbblTransaction extends NimbblEntity implements JsonSerializable
             'items' => $transactions
         ];
     }
-    public function retrieveRefundById($id)
-    {
-        $nimbblRequest = new NimbblRequest();
-        $oneEntity = $nimbblRequest->request('GET', 'v2/fetch-refund/' . $id);
-        $loadedEntity = $this->fillOne($oneEntity);
-        $this->attributes = $loadedEntity->attributes;
-        $this->error = $loadedEntity->error;
-        return $this;
-    }
-
-    public function retrieveRefundByOrderId($id)
-    {
-        $nimbblRequest = new NimbblRequest();
-        $manyEntities = $nimbblRequest->request('GET', 'v2/order/fetch-refunds/' . $id);
-        
-        $refunds = array();
-        foreach ($manyEntities['refunds'] as $idx => $oneEntity) {
-            $refunds[] = $this->fillOne($oneEntity);
-        }
-
-        return [
-            'items' => $refunds
-        ];
-    }
-
-    public function retrieveRefundByTxnId($id)
-    {
-        $nimbblRequest = new NimbblRequest();
-        $manyEntities = $nimbblRequest->request('GET', 'v2/transaction/fetch-refunds/' . $id);
-        
-        $refunds = array();
-        foreach ($manyEntities['refunds'] as $idx => $oneEntity) {
-            $refunds[] = $this->fillOne($oneEntity);
-        }
-
-        return [
-            'items' => $refunds
-        ];
-    }
+    
 }

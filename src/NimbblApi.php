@@ -10,6 +10,8 @@ class NimbblApi
 
     protected static $secret;
 
+    protected static $merchantId;
+
     /*
      * App info is to store the Plugin/integration
      * information
@@ -98,5 +100,14 @@ class NimbblApi
     public static function getFullUrl($relativeUrl)
     {
         return self::getBaseUrl() . $relativeUrl;
+    }
+
+    public static function setMerchantId($merchantId){
+        self::$merchantId = $merchantId;
+        return true;
+    }
+
+    public static function getMerchantId(){
+        return self::$merchantId;
     }
 }
