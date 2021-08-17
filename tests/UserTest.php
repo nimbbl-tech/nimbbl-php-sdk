@@ -36,7 +36,6 @@ final class UserTest extends TestCase
     {
         $api = new NimbblApi('access_key_1MwvMkKkweorz0ry', 'access_secret_81x7ByYkRpB4g05N');
         $manyUsers = $api->user->retrieveMany();
-
         $this->assertEquals(sizeof($manyUsers['items']), 20);
     }
 }

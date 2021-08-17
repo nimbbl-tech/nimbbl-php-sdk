@@ -29,7 +29,6 @@ class NimbblUser extends NimbblEntity implements JsonSerializable
         $f = base64_encode($this->buildHttpQuery($options));
         $nimbblRequest = new NimbblRequest();
         $manyEntities = $nimbblRequest->request('GET', 'users/many?f=' . $f . '&pt=no');
-
         $users = array();
         foreach ($manyEntities['items'] as $idx => $oneEntity) {
             $users[] = $this->fillOne($oneEntity);

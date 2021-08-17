@@ -60,14 +60,50 @@ class NimbblRequest
     public function request($method, $url, $data = array())
     {
         $url = NimbblApi::getFullUrl($url);
+        
+        $hooks = new Requests_Hooks();
+
+        $hooks->register('curl.before_send', array($this, 'setCurlSslOpts'));
+
+        $nimbblToken = self::generateToken();
+
+        // TODO: FIXME instead of using normal auth we have to use token auth.
+        $options = [
+            'hook' => $hooks,
+            'timeout' => 60,
+        ];
+
+        $headers = $this->getRequestHeaders();
+
+        $headers['Authorization'] = 'Bearer ' . $nimbblToken['token'];
+
+        if (strtolower($method) === 'post') {
+            $data = json_encode($data);
+        }
+
+        $response = Requests::request($url, $headers, $data, $method, $options);
+
+        // $this->checkErrors($response);
+
+        return json_decode($response->body, true);
+        
+
+        // TODO: FIXME instead of using normal auth we have to use token auth.
+        
+    }
+
+    public function universalRequest($method, $url, $data = array())
+    {
+        $url = NimbblApi::getFullUrl($url);
 
         $hooks = new Requests_Hooks();
 
         $hooks->register('curl.before_send', array($this, 'setCurlSslOpts'));
 
-        $tokenResponse = Requests::post(NimbblApi::getTokenEndpoint(), ['Content-Type' => 'application/json'], json_encode(['access_key' => NimbblApi::getKey(), 'access_secret' => NimbblApi::getSecret()]));
-        $tokenResponseBody = json_decode($tokenResponse->body, true);
+        $nimbblToken = self::generateToken();
 
+        $nimbblKey = md5($nimbblToken['token']);
+        $sub_merchant = $nimbblToken['auth_principal']['sub_merchant_id'];
         // TODO: FIXME instead of using normal auth we have to use token auth.
         $options = [
             // 'auth' => new NimbblAuth($tokenResponseBody['token']),
@@ -76,7 +112,8 @@ class NimbblRequest
         ];
 
         $headers = $this->getRequestHeaders();
-        $headers['Authorization'] = 'Bearer ' . $tokenResponseBody['token'];
+        $headers['Authorization'] = 'Bearer ' . $nimbblToken['token'];
+        $headers['x-nimbbl-key'] = $sub_merchant . '-' . $nimbblKey;
 
         if (strtolower($method) === 'post') {
             $data = json_encode($data);
@@ -188,6 +225,49 @@ class NimbblRequest
         }
 
         return $appsDetailsUa;
+    }
+
+    public function generateToken()
+    {
+        $nimbblSegment = new NimbblSegment();
+        $nimbblSegment->track(array(
+                "userId" => NimbblApi::getKey(),
+                "event" => "Authorization Submitted",
+                "properties" => [
+                  "access_key" => NimbblApi::getKey(),
+                  "kit_name" => 'php-sdk',
+                  "kit_version" => '1'
+                ],
+        ));
+        $tokenResponse = Requests::post(NimbblApi::getTokenEndpoint(), ['Content-Type' => 'application/json'], json_encode(['access_key' => NimbblApi::getKey(), 'access_secret' => NimbblApi::getSecret()]));
+        $tokenResponseBody = json_decode($tokenResponse->body, true);
+        
+        if (key_exists('error', $tokenResponseBody)) {
+            $nimbblSegment->track(array(
+                    "userId" => NimbblApi::getKey(),
+                    "event" => "Authorization Received",
+                    "properties" => [
+                        "access_key" => NimbblApi::getKey(),
+                        "auth_status" => "failed",
+                        "kit_name" => 'php-sdk',
+                        "kit_version" => '1'
+                    ],
+            ));
+        }
+        else {
+            NimbblApi::setMerchantId($tokenResponseBody['auth_principal']['sub_merchant_id']);
+            $nimbblSegment->track(array(
+                    "userId" => NimbblApi::getKey(),
+                    "event" => "Authorization Received",
+                    "properties" => [
+                        "access_key" => NimbblApi::getKey(),
+                        "auth_status" => "success",
+                        "kit_name" => 'php-sdk',
+                        "kit_version" => '1'
+                    ],
+            ));
+        }
+        return $tokenResponseBody;
     }
 
     // /**

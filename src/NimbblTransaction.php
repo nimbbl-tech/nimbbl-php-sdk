@@ -17,7 +17,7 @@ class NimbblTransaction extends NimbblEntity implements JsonSerializable
     public function retrieveOne($id)
     {
         $nimbblRequest = new NimbblRequest();
-        $oneEntity = $nimbblRequest->request('GET', 'transactions/one/' . $id);
+        $oneEntity = $nimbblRequest->request('GET', 'v2/fetch-transaction/' . $id);
         $loadedEntity = $this->fillOne($oneEntity);
         $this->attributes = $loadedEntity->attributes;
         $this->error = $loadedEntity->error;
@@ -50,4 +50,64 @@ class NimbblTransaction extends NimbblEntity implements JsonSerializable
     {
         throw new Exception("Unsupported operation.");
     }
+
+    public function transactionEnquiry($attributes = array())
+    {
+        $nimbblRequest = new NimbblRequest();
+        $nimbblSegment = new NimbblSegment();
+
+        $nimbblSegment->track(array(
+            "userId" => NimbblApi::getKey(),
+            "event" => "Enquiry Submitted",
+            "properties" => [
+                "order_id" => $attributes['order_id'],
+                "transaction_id" => $attributes['transaction_id'],
+                "merchant_id" => NimbblApi::getMerchantId(),
+                "kit_name" => 'psp-sdk',
+                'kit_version' => 1
+            ],
+        ));
+
+        $response = $nimbblRequest->universalRequest('POST', 'v2/transaction-enquiry', $attributes);
+        $newResponse = new NimbblTransaction();
+        if (key_exists('error', $response)) {
+            $newResponse->error = $createdEntity['error'];
+        }
+        else {
+            $nimbblSegment->track(array(
+                "userId" => NimbblApi::getKey(),
+                "event" => "Enquiry Received",
+                "properties" => [
+                    "order_id" => $response['nimbbl_order_id'],
+                    "transaction_id" => $response['nimbbl_transaction_id'],
+                    "merchant_id" => NimbblApi::getMerchantId(),
+                    "status" => $response['status'],
+                    "kit_name" => 'psp-sdk',
+                    'kit_version' => 1
+                ],
+            ));
+            $attributes = array();
+            foreach ($response as $key => $value) {
+                $attributes[$key] = $value;
+            }
+            $newResponse->attributes = $attributes;
+        }
+        return $newResponse;
+    }
+
+    public function retrieveTransactionByOrderId($id)
+    {
+        $nimbblRequest = new NimbblRequest();
+        $manyEntities = $nimbblRequest->request('GET', 'v2/order/fetch-transactions/' . $id);
+
+        $transactions = array();
+        foreach ($manyEntities['transactions'] as $idx => $oneEntity) {
+            $transactions[] = $this->fillOne($oneEntity);
+        }
+
+        return [
+            'items' => $transactions
+        ];
+    }
+    
 }

@@ -16,7 +16,6 @@ final class OrderTest extends TestCase
 
         $orderId = 'order_x47oddEGREZ8ZvLa';
         $order = $api->order->retrieveOne($orderId);
-
         $this->assertEmpty($order->error);
         $this->assertEquals($order->order_id, $orderId);
     }
@@ -72,7 +71,6 @@ final class OrderTest extends TestCase
             'description' => 'This is a test order...',
         );
         $newOrder = $api->order->create($order_data);
-
         $this->assertEmpty($newOrder->error);
     }
 }
