@@ -10,10 +10,12 @@ class NimbblUtil
     {
         $actualSignature = $attributes['nimbbl_signature'];
         $transactionId = $attributes['nimbbl_transaction_id'];
+        $order_amount = $attributes['order_amount'];
+        $order_currency = $attributes['order_currency'];
 
         if (isset($attributes['merchant_order_id']) === true) {
             $orderId = $attributes['merchant_order_id'];
-            $payload = $orderId . '|' . $transactionId;
+            $payload = $orderId . '|' . $transactionId . '|' . $order_amount . '|' . $order_currency ;
         } else {
             throw new NimbblError('merchant_order_id must be present.', NimbblErrorCode::SERVER_ERROR, 500);
         }

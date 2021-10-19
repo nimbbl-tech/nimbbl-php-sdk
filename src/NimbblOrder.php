@@ -2,6 +2,7 @@
 
 namespace Nimbbl\Api;
 
+use Exception;
 use JsonSerializable;
 
 
@@ -52,10 +53,28 @@ class NimbblOrder extends NimbblEntity implements JsonSerializable
         
         $newCreatedEntity = new NimbblOrder();
         if (key_exists('error', $createdEntity)) {
-            $newCreatedEntity->error = $createdEntity['error'];
-        }
-        else {
-            $nimbblSegment->track(array(
+            $createdEntityArray = (array) $createdEntity['error'];
+            $newCreatedEntity->error = $createdEntityArray;
+        } else {
+            if(array_key_exists('order',$createdEntity)){
+                $nimbblSegment->track(array(
+                    "userId" => NimbblApi::getKey(),
+                    "event" => "Order Recieved",
+                    "properties" => [
+                      "invoice_id" => $createdEntity['order']['invoice_id'],
+                      "order_id" => $createdEntity['order']['order_id'],
+                      "amount" => $createdEntity['order']['total_amount'],
+                      "merchant_id" => NimbblApi::getMerchantId(),
+                      "kit_name" => 'psp-sdk',
+                      'kit_version' => 1
+                    ],
+                ));
+                $attributes = array();
+                foreach ($createdEntity['order'] as $key => $value) {
+                    $attributes[$key] = $value;
+                }
+            }else{
+                $nimbblSegment->track(array(
                     "userId" => NimbblApi::getKey(),
                     "event" => "Order Recieved",
                     "properties" => [
@@ -66,10 +85,11 @@ class NimbblOrder extends NimbblEntity implements JsonSerializable
                       "kit_name" => 'psp-sdk',
                       'kit_version' => 1
                     ],
-            ));
-            $attributes = array();
-            foreach ($createdEntity as $key => $value) {
-                $attributes[$key] = $value;
+                ));
+                $attributes = array();
+                foreach ($createdEntity as $key => $value) {
+                    $attributes[$key] = $value;
+                }
             }
             $newCreatedEntity->attributes = $attributes;
         }
