@@ -4,7 +4,7 @@ namespace Nimbbl\Api;
 
 class NimbblApi
 {
-    protected static $baseUrl = 'https://api.nimbbl.tech/api/';
+    protected static $baseUrl = 'https://uatapi.nimbbl.tech/api/';
 
     protected static $key;
 
@@ -30,10 +30,12 @@ class NimbblApi
      * @param string $key
      * @param string $secret
      */
-    public function __construct($key, $secret)
+    public function __construct($key, $secret, $url=null)
     {
         self::$key = $key;
         self::$secret = $secret;
+        if($url != null)
+            self::$baseUrl = $url;
     }
 
     /*
