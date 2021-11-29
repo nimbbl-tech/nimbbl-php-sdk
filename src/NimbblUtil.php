@@ -15,7 +15,7 @@ class NimbblUtil
 
         if (isset($attributes['merchant_order_id']) === true) {
             $orderId = $attributes['merchant_order_id'];
-            $payload = $orderId . '|' . $transactionId . '|' . $order_amount . '|' . $order_currency ;
+            $payload = $orderId . '|' . $transactionId . '|' . number_format($order_amount, 2) . '|' . $order_currency;
         } else {
             throw new NimbblError('merchant_order_id must be present.', NimbblErrorCode::SERVER_ERROR, 500);
         }
