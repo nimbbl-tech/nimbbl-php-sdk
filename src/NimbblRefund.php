@@ -2,6 +2,7 @@
 
 namespace Nimbbl\Api;
 
+use Exception;
 use JsonSerializable;
 
 class NimbblRefund extends NimbblEntity implements JsonSerializable
@@ -46,7 +47,7 @@ class NimbblRefund extends NimbblEntity implements JsonSerializable
         $f = base64_encode($this->buildHttpQuery($options));
         $nimbblRequest = new NimbblRequest();
         $manyEntities = $nimbblRequest->request('GET', 'refunds/many?f=' . $f . '&pt=no');
-
+        
         $users = array();
         foreach ($manyEntities['items'] as $idx => $oneEntity) {
             $users[] = $this->fillOne($oneEntity);
@@ -63,14 +64,19 @@ class NimbblRefund extends NimbblEntity implements JsonSerializable
         $nimbblRequest = new NimbblRequest();
         $manyEntities = $nimbblRequest->request('GET', 'v2/order/fetch-refunds/' . $id);
         
-        $refunds = array();
-        foreach ($manyEntities['refunds'] as $idx => $oneEntity) {
-            $refunds[] = $this->fillOne($oneEntity);
+        $newResponse = new NimbblTransaction();
+        if (key_exists('error', $manyEntities)) {
+            $newResponse->error = $manyEntities['error'];
+        }
+        else{
+            $refunds = array();
+            foreach ($manyEntities['refunds'] as $idx => $oneEntity) {
+                $refunds[] = $this->fillOne($oneEntity);
+            }
+            $newResponse->items = $refunds;
         }
 
-        return [
-            'items' => $refunds
-        ];
+        return $newResponse;
     }
 
     public function retrieveRefundByTxnId($id)
@@ -78,13 +84,18 @@ class NimbblRefund extends NimbblEntity implements JsonSerializable
         $nimbblRequest = new NimbblRequest();
         $manyEntities = $nimbblRequest->request('GET', 'v2/transaction/fetch-refunds/' . $id);
         
-        $refunds = array();
-        foreach ($manyEntities['refunds'] as $idx => $oneEntity) {
-            $refunds[] = $this->fillOne($oneEntity);
+        $newResponse = new NimbblTransaction();
+        if (key_exists('error', $manyEntities)) {
+            $newResponse->error = $manyEntities['error'];
+        }
+        else{
+            $refunds = array();
+            foreach ($manyEntities['refunds'] as $idx => $oneEntity) {
+                $refunds[] = $this->fillOne($oneEntity);
+            }
+            $newResponse->items = $refunds;
         }
 
-        return [
-            'items' => $refunds
-        ];
+        return $newResponse
     }
 }

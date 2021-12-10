@@ -14,10 +14,10 @@ final class RefundTest extends TestCase
     {
         $api = new NimbblApi('access_key_1MwvMkKkweorz0ry', 'access_secret_81x7ByYkRpB4g05N');
 
-        $refundId = 'order_aKQvPpdLZbmMkv9z-20210707111956';
+        $refundId = 'order_RoQ7Zyy2zagPA0rg-20211007085901';
         $refund = $api->refund->retrieveOne($refundId);
         $this->assertEmpty($refund->error);
-        $this->assertEquals($refund->refund_id, $refundId);
+        $this->assertEquals($refund->transaction_id, $refundId);
     }
 
     public function testRetrieveMany(): void
@@ -45,7 +45,7 @@ final class RefundTest extends TestCase
     {
         $api = new NimbblApi('access_key_1MwvMkKkweorz0ry', 'access_secret_81x7ByYkRpB4g05N');
 
-        $orderId = 'order_amG06aE46A5a53Nj';
+        $orderId = 'order_RoQ7Zyy2zagPA0rg';
         $refunds = $api->refund->retrieveRefundByOrderId($orderId);
         
         $this->assertLessThan(sizeof($refunds['items']),0);
