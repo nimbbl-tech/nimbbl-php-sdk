@@ -6,7 +6,7 @@ use JsonSerializable;
 
 class NimbblUser extends NimbblEntity implements JsonSerializable
 {
-    public static function entityClass()
+    public function entityClass()
     {
         return 'Nimbbl\\Api\\NimbblUser';
     }

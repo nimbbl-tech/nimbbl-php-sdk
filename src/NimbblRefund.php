@@ -7,7 +7,7 @@ use JsonSerializable;
 
 class NimbblRefund extends NimbblEntity implements JsonSerializable
 {
-    public static function entityClass()
+    public function entityClass()
     {
         return 'Nimbbl\\Api\\NimbblRefund';
     }
@@ -47,7 +47,7 @@ class NimbblRefund extends NimbblEntity implements JsonSerializable
         $f = base64_encode($this->buildHttpQuery($options));
         $nimbblRequest = new NimbblRequest();
         $manyEntities = $nimbblRequest->request('GET', 'refunds/many?f=' . $f . '&pt=no');
-        
+
         $users = array();
         foreach ($manyEntities['items'] as $idx => $oneEntity) {
             $users[] = $this->fillOne($oneEntity);
@@ -63,12 +63,11 @@ class NimbblRefund extends NimbblEntity implements JsonSerializable
     {
         $nimbblRequest = new NimbblRequest();
         $manyEntities = $nimbblRequest->request('GET', 'v2/order/fetch-refunds/' . $id);
-        
+
         $newResponse = new NimbblTransaction();
         if (key_exists('error', $manyEntities)) {
             $newResponse->error = $manyEntities['error'];
-        }
-        else{
+        } else {
             $refunds = array();
             foreach ($manyEntities['refunds'] as $idx => $oneEntity) {
                 $refunds[] = $this->fillOne($oneEntity);
@@ -83,12 +82,11 @@ class NimbblRefund extends NimbblEntity implements JsonSerializable
     {
         $nimbblRequest = new NimbblRequest();
         $manyEntities = $nimbblRequest->request('GET', 'v2/transaction/fetch-refunds/' . $id);
-        
+
         $newResponse = new NimbblTransaction();
         if (key_exists('error', $manyEntities)) {
             $newResponse->error = $manyEntities['error'];
-        }
-        else{
+        } else {
             $refunds = array();
             foreach ($manyEntities['refunds'] as $idx => $oneEntity) {
                 $refunds[] = $this->fillOne($oneEntity);
@@ -96,6 +94,6 @@ class NimbblRefund extends NimbblEntity implements JsonSerializable
             $newResponse->items = $refunds;
         }
 
-        return $newResponse
+        return $newResponse;
     }
 }
