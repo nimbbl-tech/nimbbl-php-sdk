@@ -57,36 +57,12 @@ class NimbblTransaction extends NimbblEntity implements JsonSerializable
         $nimbblRequest = new NimbblRequest();
         $nimbblSegment = new NimbblSegment();
 
-        $nimbblSegment->track(array(
-            "userId" => NimbblApi::getKey(),
-            "event" => "Enquiry Submitted",
-            "properties" => [
-                "order_id" => $attributes['order_id'],
-                "transaction_id" => $attributes['transaction_id'],
-                "merchant_id" => NimbblApi::getMerchantId(),
-                "kit_name" => 'psp-sdk',
-                'kit_version' => 1
-            ],
-        ));
-
         $response = $nimbblRequest->universalRequest('POST', 'v2/transaction-enquiry', $attributes);
         $newResponse = new NimbblTransaction();
         if (key_exists('error', $response)) {
             $newResponse->error = $response['error'];
         }
         else {
-            $nimbblSegment->track(array(
-                "userId" => NimbblApi::getKey(),
-                "event" => "Enquiry Received",
-                "properties" => [
-                    "order_id" => $response['nimbbl_order_id'],
-                    "transaction_id" => $response['nimbbl_transaction_id'],
-                    "merchant_id" => NimbblApi::getMerchantId(),
-                    "status" => $response['status'],
-                    "kit_name" => 'psp-sdk',
-                    'kit_version' => 1
-                ],
-            ));
             $attributes = array();
             foreach ($response as $key => $value) {
                 $attributes[$key] = $value;

@@ -230,42 +230,11 @@ class NimbblRequest
     public function generateToken()
     {
         $nimbblSegment = new NimbblSegment();
-        $nimbblSegment->track(array(
-                "userId" => NimbblApi::getKey(),
-                "event" => "Authorization Submitted",
-                "properties" => [
-                  "access_key" => NimbblApi::getKey(),
-                  "kit_name" => 'php-sdk',
-                  "kit_version" => '1'
-                ],
-        ));
         $tokenResponse = Requests::post(NimbblApi::getTokenEndpoint(), ['Content-Type' => 'application/json'], json_encode(['access_key' => NimbblApi::getKey(), 'access_secret' => NimbblApi::getSecret()]));
         $tokenResponseBody = json_decode($tokenResponse->body, true);
         
-        if (key_exists('error', $tokenResponseBody)) {
-            $nimbblSegment->track(array(
-                    "userId" => NimbblApi::getKey(),
-                    "event" => "Authorization Received",
-                    "properties" => [
-                        "access_key" => NimbblApi::getKey(),
-                        "auth_status" => "failed",
-                        "kit_name" => 'php-sdk',
-                        "kit_version" => '1'
-                    ],
-            ));
-        }
-        else {
+        if (!key_exists('error', $tokenResponseBody)) {
             NimbblApi::setMerchantId($tokenResponseBody['auth_principal']['sub_merchant_id']);
-            $nimbblSegment->track(array(
-                    "userId" => NimbblApi::getKey(),
-                    "event" => "Authorization Received",
-                    "properties" => [
-                        "access_key" => NimbblApi::getKey(),
-                        "auth_status" => "success",
-                        "kit_name" => 'php-sdk',
-                        "kit_version" => '1'
-                    ],
-            ));
         }
         return $tokenResponseBody;
     }

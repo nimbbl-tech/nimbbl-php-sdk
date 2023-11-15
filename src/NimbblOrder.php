@@ -38,16 +38,6 @@ class NimbblOrder extends NimbblEntity implements JsonSerializable
     {
         $nimbblRequest = new NimbblRequest();
         $nimbblSegment = new NimbblSegment();
-        $nimbblSegment->track(array(
-                "userId" => NimbblApi::getKey(),
-                "event" => "Order Submitted",
-                "properties" => [
-                  "invoice_id" => $attributes['invoice_id'],
-                  "amount" => $attributes['total_amount'],
-                  "kit_name" => "psp-sdk",
-                  "kit_version" => "1"
-                ],
-        ));
 
         $createdEntity = $nimbblRequest->request('POST', 'v2/create-order', $attributes);
         
@@ -57,35 +47,11 @@ class NimbblOrder extends NimbblEntity implements JsonSerializable
             $newCreatedEntity->error = $createdEntityArray;
         } else {
             if(array_key_exists('order',$createdEntity)){
-                $nimbblSegment->track(array(
-                    "userId" => NimbblApi::getKey(),
-                    "event" => "Order Recieved",
-                    "properties" => [
-                      "invoice_id" => $createdEntity['order']['invoice_id'],
-                      "order_id" => $createdEntity['order']['order_id'],
-                      "amount" => $createdEntity['order']['total_amount'],
-                      "merchant_id" => NimbblApi::getMerchantId(),
-                      "kit_name" => 'psp-sdk',
-                      'kit_version' => 1
-                    ],
-                ));
                 $attributes = array();
                 foreach ($createdEntity['order'] as $key => $value) {
                     $attributes[$key] = $value;
                 }
             }else{
-                $nimbblSegment->track(array(
-                    "userId" => NimbblApi::getKey(),
-                    "event" => "Order Recieved",
-                    "properties" => [
-                      "invoice_id" => $createdEntity['invoice_id'],
-                      "order_id" => $createdEntity['order_id'],
-                      "amount" => $createdEntity['total_amount'],
-                      "merchant_id" => NimbblApi::getMerchantId(),
-                      "kit_name" => 'psp-sdk',
-                      'kit_version' => 1
-                    ],
-                ));
                 $attributes = array();
                 foreach ($createdEntity as $key => $value) {
                     $attributes[$key] = $value;
