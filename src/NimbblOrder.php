@@ -77,4 +77,10 @@ class NimbblOrder extends NimbblEntity implements JsonSerializable
     {
         throw new Exception("Unsupported operation.");
     }
+
+    public function getOrderIdByInvoiceId($id){
+        $nimbblrequest = new NimbblRequest();
+        $response = $nimbblrequest->request('GET', 'v3/order?invoice_id='.$id);
+        return $response['order_id'];
+    }
 }
