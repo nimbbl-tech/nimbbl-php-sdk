@@ -34,12 +34,12 @@ class NimbblOrder extends NimbblEntity implements JsonSerializable
         ];
     }
 
-    public function create($attributes = array())
+    public function create($attributes = array(), $apiVersion = 'v3')
     {
         $nimbblRequest = new NimbblRequest();
         $nimbblSegment = new NimbblSegment();
 
-        $createdEntity = $nimbblRequest->request('POST', 'v3/create-order', $attributes);
+        $createdEntity = $nimbblRequest->request('POST', $apiVersion.'/create-order', $attributes);
         
         $newCreatedEntity = new NimbblOrder();
         if (key_exists('error', $createdEntity)) {
@@ -78,15 +78,15 @@ class NimbblOrder extends NimbblEntity implements JsonSerializable
         throw new Exception("Unsupported operation.");
     }
 
-    public function getOrderByInvoiceId($id){
+    public function getOrderByInvoiceId($id, $apiVersion = 'v3'){
         $nimbblrequest = new NimbblRequest();
-        $response = $nimbblrequest->request('GET', 'v3/order?invoice_id='.$id);
+        $response = $nimbblrequest->request('GET', $apiVersion.'/order?invoice_id='.$id);
         return $response;
     }
 
-    public function getOrderByOrderId($id){
+    public function getOrderByOrderId($id, $apiVersion = 'v3'){
         $nimbblrequest = new NimbblRequest();
-        $response = $nimbblrequest->request('GET', 'v3/order?order_id='.$id);
+        $response = $nimbblrequest->request('GET', $apiVersion.'/order?order_id='.$id);
         return $response;
     }
 }

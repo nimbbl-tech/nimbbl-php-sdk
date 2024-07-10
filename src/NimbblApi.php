@@ -6,6 +6,8 @@ class NimbblApi
 {
     protected static $baseUrl = 'https://api.nimbbl.tech/api/';
 
+    protected static $apiVersion = 'v3';
+
     protected static $key;
 
     protected static $secret;
@@ -30,12 +32,14 @@ class NimbblApi
      * @param string $key
      * @param string $secret
      */
-    public function __construct($key, $secret, $url=null)
+    public function __construct($key, $secret, $url=null, $apiVersion = null)
     {
         self::$key = $key;
         self::$secret = $secret;
         if($url != null)
             self::$baseUrl = $url;
+        if($apiVersion != null)
+            self::$apiVersion = $apiVersion;
     }
 
     /*
@@ -84,6 +88,10 @@ class NimbblApi
         return self::$baseUrl;
     }
 
+    public static function getAPIVersion() {
+        return self::$apiVersion;
+    }
+
     public static function getKey()
     {
         return self::$key;
@@ -96,7 +104,7 @@ class NimbblApi
 
     public static function getTokenEndpoint()
     {
-        return self::getBaseUrl() . 'v3/generate-token';
+        return self::getBaseUrl() . self::getAPIVersion() .'/generate-token';
     }
 
     public static function getFullUrl($relativeUrl)
