@@ -25,7 +25,7 @@ class NimbblRefund extends NimbblEntity implements JsonSerializable
     public function initiateRefund($attributes = array())
     {
         $nimbblRequest = new NimbblRequest();
-        $response = $nimbblRequest->universalRequest('POST', 'v2/refund', $attributes);
+        $response = $nimbblRequest->universalRequest('POST', 'v3/refund', $attributes);
         $loadedResponse = $this->fillOne($response);
         $this->attributes = $loadedResponse->attributes;
         $this->error = $loadedResponse->error;
