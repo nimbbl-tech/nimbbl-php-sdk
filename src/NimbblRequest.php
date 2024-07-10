@@ -103,7 +103,6 @@ class NimbblRequest
         $nimbblToken = self::generateToken();
 
         $nimbblKey = md5($nimbblToken['token']);
-        $sub_merchant = $nimbblToken['auth_principal']['sub_merchant_id'];
         // TODO: FIXME instead of using normal auth we have to use token auth.
         $options = [
             // 'auth' => new NimbblAuth($tokenResponseBody['token']),
@@ -113,7 +112,6 @@ class NimbblRequest
 
         $headers = $this->getRequestHeaders();
         $headers['Authorization'] = 'Bearer ' . $nimbblToken['token'];
-        $headers['x-nimbbl-key'] = $sub_merchant . '-' . $nimbblKey;
 
         if (strtolower($method) === 'post') {
             $data = json_encode($data);
@@ -233,8 +231,8 @@ class NimbblRequest
         $tokenResponse = Requests::post(NimbblApi::getTokenEndpoint(), ['Content-Type' => 'application/json'], json_encode(['access_key' => NimbblApi::getKey(), 'access_secret' => NimbblApi::getSecret()]));
         $tokenResponseBody = json_decode($tokenResponse->body, true);
         
-        if (!key_exists('error', $tokenResponseBody)) {
-            NimbblApi::setMerchantId($tokenResponseBody['auth_principal']['sub_merchant_id']);
+        if (key_exists('error', $tokenResponseBody)) {
+            error_log('Generate Token Failed due to ', $tokenResponseBody['error']['nimbbl_error_code']);
         }
         return $tokenResponseBody;
     }
