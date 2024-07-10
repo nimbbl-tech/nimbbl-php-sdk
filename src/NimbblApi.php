@@ -20,7 +20,7 @@ class NimbblApi
      */
     // public static $appsDetails = array();
 
-    const VERSION = '1.0.0';
+    const VERSION = '3.0.0';
 
     /*
      * App info is to store the Plugin/integration
