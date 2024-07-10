@@ -39,7 +39,7 @@ class NimbblOrder extends NimbblEntity implements JsonSerializable
         $nimbblRequest = new NimbblRequest();
         $nimbblSegment = new NimbblSegment();
 
-        $createdEntity = $nimbblRequest->request('POST', 'v2/create-order', $attributes);
+        $createdEntity = $nimbblRequest->request('POST', 'v3/create-order', $attributes);
         
         $newCreatedEntity = new NimbblOrder();
         if (key_exists('error', $createdEntity)) {
