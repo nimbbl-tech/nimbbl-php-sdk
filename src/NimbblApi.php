@@ -96,7 +96,7 @@ class NimbblApi
 
     public static function getTokenEndpoint()
     {
-        return self::getBaseUrl() . 'v2/generate-token';
+        return self::getBaseUrl() . 'v3/generate-token';
     }
 
     public static function getFullUrl($relativeUrl)
