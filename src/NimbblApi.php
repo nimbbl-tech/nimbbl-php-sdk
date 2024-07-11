@@ -4,7 +4,9 @@ namespace Nimbbl\Api;
 
 class NimbblApi
 {
-    protected static $baseUrl = 'https://uatapi.nimbbl.tech/api/';
+    protected static $baseUrl = 'https://api.nimbbl.tech/api/';
+
+    protected static $apiVersion = 'v3';
 
     protected static $key;
 
@@ -18,7 +20,7 @@ class NimbblApi
      */
     // public static $appsDetails = array();
 
-    const VERSION = '1.0.0';
+    const VERSION = '3.0.0';
 
     /*
      * App info is to store the Plugin/integration
@@ -30,12 +32,14 @@ class NimbblApi
      * @param string $key
      * @param string $secret
      */
-    public function __construct($key, $secret, $url=null)
+    public function __construct($key, $secret, $url=null, $apiVersion = null)
     {
         self::$key = $key;
         self::$secret = $secret;
         if($url != null)
             self::$baseUrl = $url;
+        if($apiVersion != null)
+            self::$apiVersion = $apiVersion;
     }
 
     /*
@@ -84,6 +88,10 @@ class NimbblApi
         return self::$baseUrl;
     }
 
+    public static function getAPIVersion() {
+        return self::$apiVersion;
+    }
+
     public static function getKey()
     {
         return self::$key;
@@ -96,7 +104,7 @@ class NimbblApi
 
     public static function getTokenEndpoint()
     {
-        return self::getBaseUrl() . 'v2/generate-token';
+        return self::getBaseUrl() . self::getAPIVersion() .'/generate-token';
     }
 
     public static function getFullUrl($relativeUrl)

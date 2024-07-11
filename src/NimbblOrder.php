@@ -34,58 +34,24 @@ class NimbblOrder extends NimbblEntity implements JsonSerializable
         ];
     }
 
-    public function create($attributes = array())
+    public function create($attributes = array(), $apiVersion = 'v3')
     {
         $nimbblRequest = new NimbblRequest();
-        $nimbblSegment = new NimbblSegment();
-        $nimbblSegment->track(array(
-                "userId" => NimbblApi::getKey(),
-                "event" => "Order Submitted",
-                "properties" => [
-                  "invoice_id" => $attributes['invoice_id'],
-                  "amount" => $attributes['total_amount'],
-                  "kit_name" => "psp-sdk",
-                  "kit_version" => "1"
-                ],
-        ));
 
-        $createdEntity = $nimbblRequest->request('POST', 'v2/create-order', $attributes);
+        $createdEntity = $nimbblRequest->request('POST', $apiVersion.'/create-order', $attributes);
         
         $newCreatedEntity = new NimbblOrder();
         if (key_exists('error', $createdEntity)) {
+            error_log('['.date("Y-m-d H:i:s").'] [ERROR] => Create Order failed due to '.$createdEntity['error']['nimbbl_error_code']);
             $createdEntityArray = (array) $createdEntity['error'];
             $newCreatedEntity->error = $createdEntityArray;
         } else {
             if(array_key_exists('order',$createdEntity)){
-                $nimbblSegment->track(array(
-                    "userId" => NimbblApi::getKey(),
-                    "event" => "Order Recieved",
-                    "properties" => [
-                      "invoice_id" => $createdEntity['order']['invoice_id'],
-                      "order_id" => $createdEntity['order']['order_id'],
-                      "amount" => $createdEntity['order']['total_amount'],
-                      "merchant_id" => NimbblApi::getMerchantId(),
-                      "kit_name" => 'psp-sdk',
-                      'kit_version' => 1
-                    ],
-                ));
                 $attributes = array();
                 foreach ($createdEntity['order'] as $key => $value) {
                     $attributes[$key] = $value;
                 }
             }else{
-                $nimbblSegment->track(array(
-                    "userId" => NimbblApi::getKey(),
-                    "event" => "Order Recieved",
-                    "properties" => [
-                      "invoice_id" => $createdEntity['invoice_id'],
-                      "order_id" => $createdEntity['order_id'],
-                      "amount" => $createdEntity['total_amount'],
-                      "merchant_id" => NimbblApi::getMerchantId(),
-                      "kit_name" => 'psp-sdk',
-                      'kit_version' => 1
-                    ],
-                ));
                 $attributes = array();
                 foreach ($createdEntity as $key => $value) {
                     $attributes[$key] = $value;
@@ -110,5 +76,27 @@ class NimbblOrder extends NimbblEntity implements JsonSerializable
     public function edit($attributes = null)
     {
         throw new Exception("Unsupported operation.");
+    }
+
+    public function getOrderByInvoiceId($id, $apiVersion = 'v3'){
+        $nimbblrequest = new NimbblRequest();
+        $response = $nimbblrequest->request('GET', $apiVersion.'/order?invoice_id='.$id);
+
+        if (key_exists('error', $response)){
+            error_log('['.date("Y-m-d H:i:s").'] [ERROR] => Get Order By Invoice Id failed due to '.$response['error']['nimbbl_error_code']);
+            return (array) $response['error'];
+        }
+        return $response;
+    }
+
+    public function getOrderByOrderId($id, $apiVersion = 'v3'){
+        $nimbblrequest = new NimbblRequest();
+        $response = $nimbblrequest->request('GET', $apiVersion.'/order?order_id='.$id);
+
+        if (key_exists('error', $response)){
+            error_log('['.date("Y-m-d H:i:s").'] [ERROR] => Get Order By Order Id failed due to '.$response['error']['nimbbl_error_code']);
+            return (array) $response['error'];
+        }
+        return $response;
     }
 }
