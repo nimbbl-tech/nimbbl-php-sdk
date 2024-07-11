@@ -22,10 +22,15 @@ class NimbblRefund extends NimbblEntity implements JsonSerializable
         throw new Exception("Unsupported operation.");
     }
 
-    public function initiateRefund($attributes = array())
+    public function initiateRefund($attributes = array(), $apiVersion = 'v3')
     {
         $nimbblRequest = new NimbblRequest();
-        $response = $nimbblRequest->universalRequest('POST', 'v2/refund', $attributes);
+        $response = $nimbblRequest->universalRequest('POST', $apiVersion.'/refund', $attributes);
+
+        if (key_exists('error', $response)){
+            error_log('['.date("Y-m-d H:i:s").'] [ERROR] => Initiate Refund failed due to '.$response['error']['nimbbl_error_code']);
+        }
+
         $loadedResponse = $this->fillOne($response);
         $this->attributes = $loadedResponse->attributes;
         $this->error = $loadedResponse->error;
