@@ -67,7 +67,7 @@ class NimbblRequest
 
         $nimbblToken = self::generateToken();
 
-        // TODO: FIXME instead of using normal auth we have to use token auth.
+        // http-timeout
         $options = [
             'hook' => $hooks,
             'timeout' => 60,
@@ -102,8 +102,7 @@ class NimbblRequest
 
         $nimbblToken = self::generateToken();
 
-        $nimbblKey = md5($nimbblToken['token']);
-        // TODO: FIXME instead of using normal auth we have to use token auth.
+        // http-timeout
         $options = [
             // 'auth' => new NimbblAuth($tokenResponseBody['token']),
             'hook' => $hooks,
@@ -232,7 +231,7 @@ class NimbblRequest
         $tokenResponseBody = json_decode($tokenResponse->body, true);
         
         if (key_exists('error', $tokenResponseBody)) {
-            error_log('Generate Token Failed due to ', $tokenResponseBody['error']['nimbbl_error_code']);
+            error_log('['.date("Y-m-d H:i:s").'] [ERROR] => Generate Token failed due to '.$tokenResponseBody['error']['nimbbl_error_code']);
         }
         return $tokenResponseBody;
     }
