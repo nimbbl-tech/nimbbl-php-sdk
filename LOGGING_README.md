@@ -97,25 +97,111 @@ grep -i nimbbl /var/log/nginx/error.log | tail -50
 
 ## Enhanced Components
 
-### 1. NimbblUtil.php
-- Payment signature verification logging
-- Amount formatting details
-- Hash comparison results
+### 1. NimbblLogger.php (Core Logger)
+- Centralized singleton logger used across the SDK: `Nimbbl\Api\NimbblLogger::getInstance()->log($message, $level, $component)`
+- Outputs to three sinks simultaneously:
+  - PHP error log (visible in nginx error.log)
+  - Custom file: `logs/nimbbl_debug.log`
+  - Stdout when running under CLI
+- Log format: `[YYYY-MM-DD HH:MM:SS] [LEVEL] [Component] Message`
 
-### 2. NimbblApi.php
-- API configuration logging
-- Token and secret management
-- URL construction details
+Example:
+```
+[2024-01-15 10:30:45] [INFO] [NimbblSDK] Initialization complete
+```
 
-### 3. NimbblRequest.php
-- HTTP request/response logging
-- Header management
-- Error processing
+### 2. NimbblRequest.php (HTTP Layer)
+- Captures full request lifecycle for all SDK API calls.
+- Key logs:
+  - START/END markers with method and relative/absolute URLs
+  - Prepared headers (safely printable), request body for POST
+  - HTTP response status, headers, and body
+  - JSON-decoded response and success/failure markers
+  - Token generation call details (`generateToken()`)
+  - cURL SSL options applied (`setCurlSslOpts`)
+  - Error pathways via `checkErrors()`, `processError()`, `throwServerError()`
 
-### 4. NimbblOrder.php
-- Order creation and retrieval
-- API response parsing
-- Error handling
+Example (request excerpt):
+```
+[2024-01-15 10:30:46] [INFO] [NimbblRequest] request START - method: POST, url: v3/create-order
+[2024-01-15 10:30:46] [DEBUG] [NimbblRequest] request HEADERS: Array(...)
+[2024-01-15 10:30:46] [DEBUG] [NimbblRequest] request BODY: {"amount_before_tax":100,"..."}
+[2024-01-15 10:30:47] [INFO] [NimbblRequest] request RESPONSE - status: 200
+```
+
+### 3. NimbblApi.php (Configuration/Context)
+- Constructor logs SDK setup with masked keys and selected base URL/API version.
+- `setHeader()` logs additions to global request headers.
+- `getBaseUrl()`, `getAPIVersion()`, `getKey()`, `getSecret()` log read access (keys/secrets masked).
+- `getTokenEndpoint()` and `getFullUrl()` log constructed URLs for traceability.
+
+Example:
+```
+[2024-01-15 10:30:45] [DEBUG] [NimbblApi] __construct START - key: test****, url: default
+[2024-01-15 10:30:45] [INFO]  [NimbblApi] __construct END - baseUrl: https://api.nimbbl.tech/api/, apiVersion: v3
+```
+
+### 4. NimbblUtil.php (Signature & Utilities)
+- `verifyPaymentSignature()` logs inputs, computed signature string, and final verification result.
+- Signature v3 support with canonical payload: `invoice_id|nimbbl_transaction_id|amount|currency|status|transaction_type`.
+- `formatAmount()` logs normalization of amounts to two decimals.
+- `verifySignature()` logs payload and attributes (line breaks sanitized) and whether comparison succeeded.
+
+Example:
+```
+[2024-01-15 10:30:48] [INFO]  [NimbblUtil] verifyPaymentSignature START - orderAmount: 100.00
+[2024-01-15 10:30:48] [DEBUG] [NimbblUtil] signature_string v3 generated: inv_001|o_abc|100.00|INR|success|payment
+[2024-01-15 10:30:48] [INFO]  [NimbblUtil] verifyPaymentSignature END - Result: SUCCESS
+```
+
+### 5. NimbblOrder.php (Orders)
+- `create()` logs endpoint resolution, headers/body preparation, raw HTTP response status/body, and parsed JSON.
+- Detects whether `token` is present at top-level or inside `order`, logs which pattern matched.
+- All errors/exceptions are captured with stack traces to aid debugging.
+- `retrieveOne()`/`retrieveMany()` log input parameters, counts, and success markers.
+
+Example:
+```
+[2024-01-15 10:30:46] [DEBUG] [NimbblOrder] create PREPARED - endpoint: v3/create-order, fullUrl: https://api.nimbbl.tech/api/v3/create-order
+[2024-01-15 10:30:47] [DEBUG] [NimbblOrder] create RAW JSON RESPONSE: {"token":"tok_123","order":{...}}
+[2024-01-15 10:30:47] [DEBUG] [NimbblOrder] create SUCCESS - token found in response
+```
+
+### 6. NimbblRefund.php (Refunds)
+- `initiateRefund()` logs start, request payload, raw API response, and errors (with Nimbbl error codes if present).
+- `retrieveOne()`/`retrieveMany()` helpers log lookup and list responses (avoid using legacy "fetch" endpoints in new flows).
+
+Example:
+```
+[2024-01-15 10:31:10] [INFO]  [php] ... NimbblRefund::initiateRefund START
+[2024-01-15 10:31:11] [INFO]  [php] ... NimbblRefund::initiateRefund API RESPONSE: Array(...)
+```
+
+### 7. NimbblSegment.php (Analytics Hooks)
+- `identify()` and `track()` send events to Segment with basic auth and JSON payloads.
+- Logs START/END and error messages; leverages same cURL SSL hooks for consistency.
+
+Example:
+```
+[2024-01-15 10:31:30] [INFO]  [php] ... NimbblSegment::track START
+[2024-01-15 10:31:31] [INFO]  [php] ... NimbblSegment::track END
+```
+
+### 8. log_monitor.php (Operational Utility)
+- Monitors custom log file and nginx error log simultaneously.
+- Supports:
+  - `--follow` (tail -f behavior)
+  - `--lines=N` (last N lines)
+  - `--file=path` (custom file)
+  - `--nginx` (nginx error log only)
+- Filters nginx stream to show only Nimbbl-related entries.
+
+Example:
+```
+php log_monitor.php --follow
+php log_monitor.php --lines=100
+php log_monitor.php --file=/var/log/custom.log
+```
 
 ## Configuration
 
