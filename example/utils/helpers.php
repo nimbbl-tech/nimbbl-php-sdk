@@ -1,3 +1,5 @@
+use Nimbbl\Api\Api;
+
 <?php
 // Suppress deprecation warnings from vendor libraries (PHP 8.2+)
 // This should be called before loading vendor/autoload.php
@@ -46,11 +48,11 @@ function loadConfig()
  * Initialize Nimbbl API instance with configuration
  *
  * @param array $config Configuration array from loadConfig()
- * @return NimbblApiApi Initialized API instance
+ * @return Api Initialized API instance
  */
 function initApi($config)
 {
-    return new NimbblApiApi(
+    return new Api(
         $config['access_key'],
         $config['access_secret'],
         $config['api_endpoint'],
