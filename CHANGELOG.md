@@ -2,7 +2,7 @@
 
 All notable changes to the Nimbbl PHP SDK are documented here. This release is the first of the current refactored SDK line.
 
-## [3.6.9] - 2024-12-09
+## [4.0.0] - 2025-12-10
 
 ### Highlights
 - **PHP 7.4+** minimum, updated docs and examples accordingly.

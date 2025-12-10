@@ -6,7 +6,7 @@ class SdkConstants
 {
     // SDK identifiers
     const SDK_NAME = 'NimbblPHP';
-    const SDK_VERSION = '3.6.9';
+    const SDK_VERSION = '4.0.0';
 
     // Log Levels
     const LOG_ERROR = 'ERROR';
