@@ -540,20 +540,6 @@ The SDK now exclusively uses v3 API endpoints. All v2 endpoints and backward com
 4. **Exception Hierarchy**: New exception classes for better error handling
 5. **Webhook Handling**: New Webhook class and WebhookEvent model
 
-### Breaking Changes
-
-- `apiVersion` parameter removed from all API client methods
-- `NimbblSegment` class removed (was deprecated, no longer needed)
-- `retrieveMany()` method removed from base entity class
-- Users API removed (not an official public API)
-- Deprecated methods removed:
-  - `Order::create()` → use `createOrder()`
-  - `Order::retrieveOne()` → use `getOrderById()`
-  - `Order::retrieveByInvoiceId()` → use `getOrderByInvoiceId()`
-  - `Order::edit()` → use `updateOrder()`
-  - `Address::retrieveOne()` → use `getAddressById()`
-- Error handling now uses new exception hierarchy (backward compatible with `NimbblError`)
-
 ## 📋 Requirements
 
 - PHP >= 7.4
@@ -576,18 +562,9 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📞 Support
 
-For support, email support@nimbbl.tech or visit [https://nimbbl.biz/support/](https://nimbbl.biz/support/)
-
-## 🗺️ Roadmap
-
-- [x] API Standardization (v3 only)
-- [x] Event Logging System
-- [x] Webhook Handling
-- [x] Error Handling & Structure
-- [x] Testing & Documentation
-- [ ] Sample Applications (Phase 6)
+For support, email support@nimbbl.biz
 
 ---
 
 **Version**: 3.6.9  
-**Last Updated**: 2024
+**Last Updated**: December 10, 2025
