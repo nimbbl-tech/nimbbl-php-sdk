@@ -515,8 +515,7 @@ See [tests/README.md](tests/README.md) for more details.
 Comprehensive examples are available in the `example/` directory:
 
 - `index.php` - Main examples (all-in-one)
-- `create-order.php` - Order creation examples
-- `get-order.php` - Retrieve order examples
+- `order-examples.php` - Create and retrieve orders
 - `payments-examples.php` - Payment processing examples
 - `payment-links-examples.php` - Payment links examples
 - `addresses-examples.php` - Addresses API examples
@@ -566,11 +565,6 @@ The SDK now exclusively uses v3 API endpoints. All v2 endpoints and backward com
 - [API Documentation](https://nimbbl.biz/docs/api-reference/introduction/)
 - [Nimbbl Dashboard](https://dashboard.nimbbl.tech/)
 - [Support](https://nimbbl.biz/support/)
-
-## 📦 Publishing & Usage
-
-- **[PUBLISHING.md](./PUBLISHING.md)** - Complete guide for publishing the SDK to Packagist
-- **[example/USING_SDK.md](./example/USING_SDK.md)** - Guide for using the SDK in your application (Laravel, CodeIgniter, Symfony, plain PHP)
 
 ## 📄 License
 
