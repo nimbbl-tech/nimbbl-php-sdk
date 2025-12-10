@@ -1,0 +1,19 @@
+<?php
+/**
+ * Nimbbl PHP SDK Configuration
+ *
+ * Copy this file to config.php and update with your credentials
+ * DO NOT commit config.php to version control
+ */
+
+return [
+    'access_key' => 'your_access_key_here',
+    'access_secret' => 'your_access_secret_here',
+    // Combined API endpoint (base + version)
+    // Prod: https://api.nimbbl.tech/api/v3
+    // UAT:  https://apipp.nimbbl.tech/api/v3
+    'api_endpoint' => 'https://apipp.nimbbl.tech/api/v3',
+    // Logging (optional)
+    'enable_logging' => true,
+    'log_file' => __DIR__ . '/../logs/nimbbl_debug.log',
+];

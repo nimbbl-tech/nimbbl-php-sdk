@@ -2,3 +2,13 @@ vendor
 composer.lock
 .vscode
 .phpunit.result.cache
+
+# Log files
+logs/*.log
+*.log
+
+# Configuration files with sensitive credentials
+example/config.php
+
+# IDE workspace files
+*.code-workspace
