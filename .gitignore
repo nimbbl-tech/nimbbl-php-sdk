@@ -12,3 +12,6 @@ example/config.php
 
 # IDE workspace files
 *.code-workspace
+
+# Publishing documentation
+PUBLISHING.md
