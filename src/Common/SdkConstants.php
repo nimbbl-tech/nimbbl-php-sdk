@@ -1,21 +1,15 @@
 <?php
 
-namespace Nimbbl\Api;
+namespace Nimbbl\Api\Common;
 
 class SdkConstants
 {
     // SDK identifiers
-    const SDK_NAME = 'NimbblPHP';
+    const SDK_NAME = 'Nimbbl PHP SDK';
     const SDK_VERSION = '4.0.0';
 
-    // Log Levels
-    const LOG_ERROR = 'ERROR';
-    const LOG_REQUEST = 'REQUEST';
-    const LOG_RESPONSE = 'RESPONSE';
-    const LOG_INFO = 'INFO';
-    const LOG_DEBUG = 'DEBUG';
-    const LOG_WARNING = 'WARNING';
-    const LOG_DESERIALIZATION_ERROR = 'DESERIALIZATION_ERROR';
+    // Signature Constants
+    const SIGNATURE_VERSION_V3 = 'v3';
 
     // Component Names (SDK Classes)
     const COMPONENT_ORDER = 'Order';

@@ -1,5 +1,6 @@
 {
 	"name": "rmccue/requests",
+	"version": "1.8.0",
 	"description": "A HTTP library written in PHP, for human beings.",
 	"homepage": "http://github.com/WordPress/Requests",
 	"license": "ISC",

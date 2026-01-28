@@ -7,13 +7,14 @@
  */
 
 return [
-    'access_key' => 'your_access_key_here',
-    'access_secret' => 'your_access_secret_here',
-    // Combined API endpoint (base + version)
-    // Prod: https://api.nimbbl.tech/api/v3
-    // UAT:  https://apipp.nimbbl.tech/api/v3
-    'api_endpoint' => 'https://apipp.nimbbl.tech/api/v3',
+    'access_key' => getenv('NIMBBL_ACCESS_KEY') ?: 'your_access_key_here',
+    'access_secret' => getenv('NIMBBL_ACCESS_SECRET') ?: 'your_access_secret_here',
+    // Base URL + version used by SDK and tests
+    'api_url' => 'https://api.nimbbl.tech/api/',
+    'api_version' => 'v3',
     // Logging (optional)
     'enable_logging' => true,
     'log_file' => __DIR__ . '/../logs/nimbbl_debug.log',
+    // Debug logging flag (controls Logger::enableDebugLogging/disableDebugLogging)
+    'debug_logging' => false,
 ];

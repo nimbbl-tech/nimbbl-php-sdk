@@ -13,14 +13,14 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../example/config.php';
 require_once __DIR__ . '/../example/utils/helpers.php';
 
-use Nimbbl\Api\Api;
-use Nimbbl\Api\Request;
+use Nimbbl\Api\RestClient\NimbblClient;
+use Nimbbl\Api\RestClient\Request;
 
 // Load configuration
 $config = loadConfig();
 
 // Initialize Nimbbl API
-$api = new Api(
+$api = new NimbblClient(
     $config['access_key'],
     $config['access_secret'],
     $config['api_url'],
@@ -34,7 +34,7 @@ echo "Step 1: Generating merchant token\n";
 echo str_repeat('-', 50) . "\n";
 $request = new Request();
 $merchantToken = $request->generateToken()['token'];
-echo "✓ Merchant token generated\n\n";
+echo "[SUCCESS] Merchant token generated\n\n";
 
 // First, create an order to test payment initiation
 echo "Step 2: Creating an order for payment testing\n";
@@ -54,30 +54,30 @@ try {
             'country_code' => '+91'
         ]
     ], $merchantToken);
-    
+
     if (isset($order['error'])) {
-        echo "✗ Error creating order: " . print_r($order['error'], true) . "\n";
+        echo "[ERROR] Error creating order: " . print_r($order['error'], true) . "\n";
         exit(1);
     }
-    
+
     $orderId = $order['nimbbl_order_id'] ?? $order['order_id'] ?? null;
     $orderToken = $order['token'] ?? null;
-    
+
     if (!$orderId) {
-        echo "✗ Error: Order ID not found in response\n";
+        echo "[ERROR] Error: Order ID not found in response\n";
         exit(1);
     }
-    
+
     if (!$orderToken) {
-        echo "✗ Error: Order token not found in response\n";
+        echo "[ERROR] Error: Order token not found in response\n";
         exit(1);
     }
-    
-    echo "✓ Order created successfully\n";
+
+    echo "[SUCCESS] Order created successfully\n";
     echo "  Order ID: {$orderId}\n";
     echo "  Order Token: " . substr($orderToken, 0, 20) . "...\n";
 } catch (Exception $e) {
-    echo "✗ Exception creating order: " . $e->getMessage() . "\n";
+    echo "[ERROR] Exception creating order: " . $e->getMessage() . "\n";
     exit(1);
 }
 
@@ -93,17 +93,17 @@ try {
         'bank_code' => 'axis', // Required for netbanking
         'callback_url' => 'https://example.com/callback'
     ], $orderToken);
-    
+
     if (isset($paymentInit['error'])) {
-        echo "✗ Error: " . print_r($paymentInit['error'], true) . "\n";
+        echo "[ERROR] Error: " . print_r($paymentInit['error'], true) . "\n";
     } else {
-        echo "✓ Payment initiated successfully\n";
+        echo "[SUCCESS] Payment initiated successfully\n";
         echo "  Transaction ID: " . ($paymentInit['transaction_id'] ?? $paymentInit['nimbbl_transaction_id'] ?? 'N/A') . "\n";
         echo "  Status: " . ($paymentInit['status'] ?? 'N/A') . "\n";
         $transactionId = $paymentInit['transaction_id'] ?? $paymentInit['nimbbl_transaction_id'] ?? null;
     }
 } catch (Exception $e) {
-    echo "✗ Exception: " . $e->getMessage() . "\n";
+    echo "[ERROR] Exception: " . $e->getMessage() . "\n";
 }
 
 echo "\n\n";
@@ -116,18 +116,18 @@ if (isset($transactionId) && $orderToken) {
         $resendOtp = $api->payments()->resendPaymentOtp([
             'transaction_id' => $transactionId
         ], $orderToken);
-        
+
         if (isset($resendOtp['error'])) {
-            echo "✗ Error: " . print_r($resendOtp['error'], true) . "\n";
+            echo "[ERROR] Error: " . print_r($resendOtp['error'], true) . "\n";
         } else {
-            echo "✓ OTP resent successfully\n";
+            echo "[SUCCESS] OTP resent successfully\n";
         }
     } catch (Exception $e) {
-        echo "✗ Exception: " . $e->getMessage() . "\n";
+        echo "[ERROR] Exception: " . $e->getMessage() . "\n";
     }
-    
+
     echo "\n\n";
-    
+
     // Test 3: Complete Payment (for Pay Later providers that require native OTP)
     echo "Test 3: Complete Payment (Pay Later with OTP)\n";
     echo str_repeat('-', 50) . "\n";
@@ -138,19 +138,19 @@ if (isset($transactionId) && $orderToken) {
             'payment_flow' => 'otp',
             'otp' => '123456' // Replace with actual OTP
         ], $orderToken);
-        
+
         if (isset($completePayment['error'])) {
-            echo "✗ Error: " . print_r($completePayment['error'], true) . "\n";
+            echo "[ERROR] Error: " . print_r($completePayment['error'], true) . "\n";
             echo "  (This is expected if payment doesn't require OTP completion)\n";
         } else {
-            echo "✓ Payment completed successfully\n";
+            echo "[SUCCESS] Payment completed successfully\n";
             echo "  Status: " . ($completePayment['status'] ?? 'N/A') . "\n";
         }
     } catch (Exception $e) {
-        echo "✗ Exception: " . $e->getMessage() . "\n";
+        echo "[ERROR] Exception: " . $e->getMessage() . "\n";
         echo "  (This is expected if payment doesn't require OTP completion)\n";
     }
-    
+
     echo "\n\n";
 }
 

@@ -2,7 +2,7 @@
 
 This directory contains comprehensive test scripts for all Nimbbl PHP SDK API clients.
 
-## 📁 Structure
+##  Structure
 
 ```
 tests/
@@ -19,7 +19,7 @@ tests/
 # └── UserTest.php              # REMOVED - Users API not available
 ```
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### 1. Setup Configuration
 
@@ -54,7 +54,7 @@ php tests/TransactionStatusTest.php
 php tests/run-all-tests.php
 ```
 
-## 📝 Test Files
+##  Test Files
 
 ### Comprehensive Test Suite
 
@@ -126,7 +126,7 @@ The following test files were already present in the tests directory:
   - Initiate Refund (official API only)
   - Note: Other refund methods (Get by ID, List, etc.) are not official APIs
 
-- **TransactionTest.php** - ⚠️ **No active tests** (all tests commented out)
+- **TransactionTest.php** - [WARNING] **No active tests** (all tests commented out)
   - All tests are commented out as they test non-official API methods
   - Use `test-all-apis.php` for Transaction Enquiry testing (official API)
   - Use Transaction Status API tests for transaction status checking
@@ -135,7 +135,7 @@ The following test files were already present in the tests directory:
 
 These can be run individually or integrated into the master test runner.
 
-## ⚙️ Configuration
+##  Configuration
 
 Tests use the configuration from `example/config.php`. Make sure it contains:
 
@@ -151,11 +151,11 @@ return [
 ];
 ```
 
-## 📊 Test Output
+##  Test Output
 
 Each test provides:
-- ✓ Success indicators for passed tests
-- ✗ Error indicators with detailed error messages
+- [OK] Success indicators for passed tests
+- [ERROR] Error indicators with detailed error messages
 - Step-by-step output showing what's being tested
 - Execution time for each test
 
@@ -164,7 +164,7 @@ The master test runner (`run-all-tests.php`) provides:
 - Summary with pass/fail counts
 - Total execution time
 
-## 🔍 Troubleshooting
+##  Troubleshooting
 
 ### Common Issues
 
@@ -185,7 +185,7 @@ The master test runner (`run-all-tests.php`) provides:
    - Run `composer install` from the SDK root directory
    - Verify `vendor/autoload.php` exists
 
-## 📚 Related Documentation
+##  Related Documentation
 
 - [Main SDK README](../README.md)
 - [Example Applications](../example/README.md)

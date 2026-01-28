@@ -11,14 +11,14 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../example/config.php';
 require_once __DIR__ . '/../example/utils/helpers.php';
 
-use Nimbbl\Api\Api;
-use Nimbbl\Api\Request;
+use Nimbbl\Api\RestClient\NimbblClient;
+use Nimbbl\Api\RestClient\Request;
 
 // Load configuration
 $config = loadConfig();
 
 // Initialize Nimbbl API
-$api = new Api(
+$api = new NimbblClient(
     $config['access_key'],
     $config['access_secret'],
     $config['api_url'],
@@ -32,7 +32,7 @@ echo "Step 1: Generating merchant token\n";
 echo str_repeat('-', 50) . "\n";
 $request = new Request();
 $merchantToken = $request->generateToken()['token'];
-echo "✓ Merchant token generated\n\n";
+echo "[SUCCESS] Merchant token generated\n\n";
 
 // First, create an order for context
 echo "Step 2: Creating an order for checkout utilities testing\n";
@@ -52,30 +52,30 @@ try {
             'country_code' => '+91'
         ]
     ], $merchantToken);
-    
+
     if (isset($order['error'])) {
-        echo "✗ Error creating order: " . print_r($order['error'], true) . "\n";
+        echo "[ERROR] Error creating order: " . print_r($order['error'], true) . "\n";
         exit(1);
     }
-    
+
     $orderId = $order['nimbbl_order_id'] ?? $order['order_id'] ?? null;
     $orderToken = $order['token'] ?? null;
-    
+
     if (!$orderId) {
-        echo "✗ Error: Order ID not found in response\n";
+        echo "[ERROR] Error: Order ID not found in response\n";
         exit(1);
     }
-    
+
     if (!$orderToken) {
-        echo "✗ Error: Order token not found in response\n";
+        echo "[ERROR] Error: Order token not found in response\n";
         exit(1);
     }
-    
-    echo "✓ Order created successfully\n";
+
+    echo "[SUCCESS] Order created successfully\n";
     echo "  Order ID: {$orderId}\n";
     echo "  Order Token: " . substr($orderToken, 0, 20) . "...\n";
 } catch (Exception $e) {
-    echo "✗ Exception creating order: " . $e->getMessage() . "\n";
+    echo "[ERROR] Exception creating order: " . $e->getMessage() . "\n";
     exit(1);
 }
 
@@ -88,11 +88,11 @@ try {
     $paymentModes = $api->checkoutUtilities()->listPaymentModes([
         'order_id' => $orderId
     ], $orderToken);
-    
+
     if (isset($paymentModes['error'])) {
-        echo "✗ Error: " . print_r($paymentModes['error'], true) . "\n";
+        echo "[ERROR] Error: " . print_r($paymentModes['error'], true) . "\n";
     } else {
-        echo "✓ Payment modes retrieved successfully\n";
+        echo "[SUCCESS] Payment modes retrieved successfully\n";
         if (isset($paymentModes['payment_modes']) && is_array($paymentModes['payment_modes'])) {
             echo "  Available payment modes: " . count($paymentModes['payment_modes']) . "\n";
             foreach (array_slice($paymentModes['payment_modes'], 0, 3) as $mode) {
@@ -101,7 +101,7 @@ try {
         }
     }
 } catch (Exception $e) {
-    echo "✗ Exception: " . $e->getMessage() . "\n";
+    echo "[ERROR] Exception: " . $e->getMessage() . "\n";
 }
 
 echo "\n\n";
@@ -113,11 +113,11 @@ try {
     $banks = $api->checkoutUtilities()->listBanks([
         'order_id' => $orderId
     ], $orderToken);
-    
+
     if (isset($banks['error'])) {
-        echo "✗ Error: " . print_r($banks['error'], true) . "\n";
+        echo "[ERROR] Error: " . print_r($banks['error'], true) . "\n";
     } else {
-        echo "✓ Banks retrieved successfully\n";
+        echo "[SUCCESS] Banks retrieved successfully\n";
         if (isset($banks['bank_list']) && is_array($banks['bank_list'])) {
             echo "  Available banks: " . count($banks['bank_list']) . "\n";
             foreach (array_slice($banks['bank_list'], 0, 5) as $bank) {
@@ -126,7 +126,7 @@ try {
         }
     }
 } catch (Exception $e) {
-    echo "✗ Exception: " . $e->getMessage() . "\n";
+    echo "[ERROR] Exception: " . $e->getMessage() . "\n";
 }
 
 echo "\n\n";
@@ -138,11 +138,11 @@ try {
     $wallets = $api->checkoutUtilities()->listWallets([
         'order_id' => $orderId
     ], $orderToken);
-    
+
     if (isset($wallets['error'])) {
-        echo "✗ Error: " . print_r($wallets['error'], true) . "\n";
+        echo "[ERROR] Error: " . print_r($wallets['error'], true) . "\n";
     } else {
-        echo "✓ Wallets retrieved successfully\n";
+        echo "[SUCCESS] Wallets retrieved successfully\n";
         if (isset($wallets['wallets']) && is_array($wallets['wallets'])) {
             echo "  Available wallets: " . count($wallets['wallets']) . "\n";
             foreach (array_slice($wallets['wallets'], 0, 5) as $wallet) {
@@ -151,7 +151,7 @@ try {
         }
     }
 } catch (Exception $e) {
-    echo "✗ Exception: " . $e->getMessage() . "\n";
+    echo "[ERROR] Exception: " . $e->getMessage() . "\n";
 }
 
 echo "\n\n";
@@ -163,11 +163,11 @@ try {
     $emis = $api->checkoutUtilities()->listEMIs([
         'order_id' => $orderId
     ], $orderToken);
-    
+
     if (isset($emis['error'])) {
-        echo "✗ Error: " . print_r($emis['error'], true) . "\n";
+        echo "[ERROR] Error: " . print_r($emis['error'], true) . "\n";
     } else {
-        echo "✓ EMIs retrieved successfully\n";
+        echo "[SUCCESS] EMIs retrieved successfully\n";
         if (isset($emis['emi_options']) && is_array($emis['emi_options'])) {
             echo "  Available EMI options: " . count($emis['emi_options']) . "\n";
             foreach (array_slice($emis['emi_options'], 0, 3) as $emi) {
@@ -176,7 +176,7 @@ try {
         }
     }
 } catch (Exception $e) {
-    echo "✗ Exception: " . $e->getMessage() . "\n";
+    echo "[ERROR] Exception: " . $e->getMessage() . "\n";
 }
 
 echo "\n\n";
@@ -189,11 +189,11 @@ try {
         'order_id' => $orderId,
         'payment_mode_code' => 'all' // Required field
     ], $orderToken);
-    
+
     if (isset($offers['error'])) {
-        echo "✗ Error: " . print_r($offers['error'], true) . "\n";
+        echo "[ERROR] Error: " . print_r($offers['error'], true) . "\n";
     } else {
-        echo "✓ Offers retrieved successfully\n";
+        echo "[SUCCESS] Offers retrieved successfully\n";
         if (isset($offers['offers']) && is_array($offers['offers'])) {
             echo "  Available offers: " . count($offers['offers']) . "\n";
             foreach (array_slice($offers['offers'], 0, 3) as $offer) {
@@ -204,7 +204,7 @@ try {
         }
     }
 } catch (Exception $e) {
-    echo "✗ Exception: " . $e->getMessage() . "\n";
+    echo "[ERROR] Exception: " . $e->getMessage() . "\n";
 }
 
 echo "\n\n";
@@ -217,16 +217,16 @@ try {
         'card_bin' => '411111', // Test BIN (Visa test card)
         'order_id' => $orderId // Optional
     ], $orderToken);
-    
+
     if (isset($binData['error'])) {
-        echo "✗ Error: " . print_r($binData['error'], true) . "\n";
+        echo "[ERROR] Error: " . print_r($binData['error'], true) . "\n";
     } else {
-        echo "✓ Card BIN data retrieved successfully\n";
+        echo "[SUCCESS] Card BIN data retrieved successfully\n";
         echo "  Card Type: " . ($binData['card_type'] ?? 'N/A') . "\n";
         echo "  Bank: " . ($binData['bank'] ?? 'N/A') . "\n";
     }
 } catch (Exception $e) {
-    echo "✗ Exception: " . $e->getMessage() . "\n";
+    echo "[ERROR] Exception: " . $e->getMessage() . "\n";
 }
 
 echo "\n\n";
@@ -238,15 +238,15 @@ try {
     $vpaValidation = $api->checkoutUtilities()->validateUpiVpa([
         'upi_id' => 'test@paytm' // Replace with actual UPI ID (API expects 'upi_id', not 'vpa')
     ], $orderToken);
-    
+
     if (isset($vpaValidation['error'])) {
-        echo "✗ Error: " . print_r($vpaValidation['error'], true) . "\n";
+        echo "[ERROR] Error: " . print_r($vpaValidation['error'], true) . "\n";
     } else {
-        echo "✓ UPI VPA validation completed\n";
+        echo "[SUCCESS] UPI VPA validation completed\n";
         echo "  Valid: " . (isset($vpaValidation['valid']) ? ($vpaValidation['valid'] ? 'Yes' : 'No') : 'N/A') . "\n";
     }
 } catch (Exception $e) {
-    echo "✗ Exception: " . $e->getMessage() . "\n";
+    echo "[ERROR] Exception: " . $e->getMessage() . "\n";
 }
 
 echo "\n\n";
@@ -263,12 +263,12 @@ echo "Skipping test...\n";
 //     ], $orderToken);
 //     
 //     if (isset($upiAppDetails['error'])) {
-//         echo "✗ Error: " . print_r($upiAppDetails['error'], true) . "\n";
+//         echo "[ERROR] Error: " . print_r($upiAppDetails['error'], true) . "\n";
 //     } else {
-//         echo "✓ UPI app details retrieved successfully\n";
+//         echo "[SUCCESS] UPI app details retrieved successfully\n";
 //     }
 // } catch (Exception $e) {
-//     echo "✗ Exception: " . $e->getMessage() . "\n";
+//     echo "[ERROR] Exception: " . $e->getMessage() . "\n";
 // }
 
 echo "\n";

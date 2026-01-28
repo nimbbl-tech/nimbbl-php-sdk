@@ -14,9 +14,9 @@ if [ -f "$LOG_FILE" ]; then
     
     # Clear the log file
     > "$LOG_FILE"
-    echo "  ✅ Log file cleared: $LOG_FILE"
+    echo "  [OK] Log file cleared: $LOG_FILE"
 else
-    echo "  ℹ️  Log file doesn't exist yet: $LOG_FILE"
+    echo "  [INFO]  Log file doesn't exist yet: $LOG_FILE"
 fi
 
 # Check for other log files
@@ -27,9 +27,9 @@ if [ "$OTHER_LOGS" -gt 0 ]; then
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         rm -f "$LOG_DIR"/*.log
-        echo "  ✅ All log files cleared"
+        echo "  [OK] All log files cleared"
     fi
 fi
 
-echo "✨ Done!"
+echo " Done!"
 

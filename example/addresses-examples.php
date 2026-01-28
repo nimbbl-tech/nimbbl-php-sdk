@@ -1,3 +1,4 @@
+#!/usr/bin/env php
 <?php
 // Suppress deprecation warnings from vendor libraries (PHP 8.2+)
 error_reporting(E_ALL & ~E_DEPRECATED);
@@ -6,281 +7,473 @@ error_reporting(E_ALL & ~E_DEPRECATED);
  * 
  * This example demonstrates how to use the Addresses API
  * 
+ * This file can be:
+ * 1. Executed standalone: php addresses-examples.php
+ * 2. Included from cli.php to use the functions: listAddressesExample(), createAddressExample(), updateAddressExample(), deleteAddressExample(), importAddressesExample(), checkAddressEligibilityExample(), linkAddressWithOrderExample()
+ * 
  * API Documentation: https://nimbbl.biz/docs/category/api-reference/addresses/
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/utils/helpers.php';
+require_once __DIR__ . '/utils/cli_output.php';
 
-use Nimbbl\Api\Api;
+// All helper functions are available from cli_output.php
+use Nimbbl\Api\Common\JsonKeys;
 
-// Load configuration
-$config = loadConfig();
+/**
+ * List Addresses - Function to be called from cli.php or standalone
+ */
+function listAddressesExample()
+{
+    // Initialize API
+    $config = loadConfig();
+    $api = initApi($config);
 
-// Initialize Nimbbl API
-$api = new Api(
-    $config['access_key'],
-    $config['access_secret'],
-    $config['api_endpoint'],
-    null,
-    null,
-    $config['log_file'] ?? null
-);
+    $data = [];
 
-echo "=== Addresses API Examples ===\n\n";
-
-// Get token from user input
-echo "Enter Token: ";
-$token = fgets(STDIN);
-if (empty($token)) {
-    echo "✗ Error: Token is required\n";
-    exit(1);
-}
-
-// Example 1: List Addresses
-echo "Example 1: List Addresses\n";
-echo str_repeat('-', 50) . "\n";
-try {
-    $addresses = $api->addresses()->listAddresses([
-        'user_id' => 'test_user_123', // Replace with actual user_id
-        'amount' => 1000,
-        'currency' => 'INR'
-    ], $token);
-    
-    if (isset($addresses['items'])) {
-        echo "✓ Successfully retrieved " . count($addresses['items']) . " addresses\n";
-        if (count($addresses['items']) > 0) {
-            $firstAddress = $addresses['items'][0];
-            echo "  First address ID: " . ($firstAddress['id'] ?? 'N/A') . "\n";
-            echo "  City: " . ($firstAddress['city'] ?? 'N/A') . "\n";
-        }
-    } else {
-        echo "✗ Error: " . print_r($addresses, true) . "\n";
+    // user_id - required for listing addresses
+    $userId = getInput("Enter User ID: ", false);
+    if ($userId) {
+        $data[JsonKeys::USER_ID] = $userId;
     }
-} catch (Exception $e) {
-    echo "✗ Exception: " . $e->getMessage() . "\n";
-}
 
-echo "\n\n";
+    // amount - order amount to calculate shipping charges
+    $amount = getInput("Enter Order Amount (for shipping calculation, optional): ", false);
+    if ($amount) {
+        $data[JsonKeys::AMOUNT] = floatval($amount);
+    }
 
-// Example 2: Create Address
-echo "Example 2: Create Address\n";
-echo str_repeat('-', 50) . "\n";
-try {
-    // According to API documentation: https://nimbbl.biz/docs/api-reference/create-an-address-v-3/
-    // The request body must have an 'addresses' array with required fields
-    $newAddress = $api->addresses()->createAddress([
-        'user_id' => 'test_user_123', // Optional
-        'addresses' => [
-            [
-                'first_name' => 'John', // Required
-                'last_name' => 'Doe', // Required
-                'address_1' => '123 Main Street', // Required
-                'area' => 'Andheri West', // Required
-                'city' => 'Mumbai', // Required
-                'state' => 'Maharashtra', // Required
-                'pincode' => '400001', // Required
-                'address_type' => 'home', // Required
-                'street' => 'MG Road', // Optional
-                'landmark' => 'Near Metro Station', // Optional
-                'label' => 'Home Address', // Optional
-                'country' => 'India', // Optional
-                'link_as' => 'shipping' // Optional: 'shipping' or 'billing'
-            ]
-        ]
-        // Optional: amount and currency for shipping calculation (should be provided together)
-        // 'amount' => 1000,
-        // 'currency' => 'INR'
-    ], $token);
-    
-    if (isset($newAddress['error'])) {
-        echo "✗ Error: " . print_r($newAddress['error'], true) . "\n";
-    } else {
-        echo "✓ Address created successfully\n";
-        // Response is an array of address objects
-        if (isset($newAddress[0]['address']['address_id'])) {
-            $createdAddressId = $newAddress[0]['address']['address_id'];
-            echo "  Address ID: " . $createdAddressId . "\n";
-            echo "  First Name: " . ($newAddress[0]['address']['first_name'] ?? 'N/A') . "\n";
-            echo "  City: " . ($newAddress[0]['address']['city'] ?? 'N/A') . "\n";
-        } else {
-            echo "  Response: " . print_r($newAddress, true) . "\n";
-            $createdAddressId = null;
+    // currency - currency code in ISO-4217 format
+    $currency = getInput("Enter Currency (ISO-4217 format, e.g., INR, optional): ", false);
+    if ($currency) {
+        $data[JsonKeys::CURRENCY] = strtoupper($currency);
+    }
+
+    if (empty($data)) {
+        printWarning("No query parameters provided. At least one parameter (user_id, amount, currency) is recommended.\n");
+        $continue = getInput("Continue anyway? (y/n): ", false);
+        if (strtolower($continue) !== 'y') {
+            return;
         }
     }
-} catch (Exception $e) {
-    echo "✗ Exception: " . $e->getMessage() . "\n";
-    $createdAddressId = null;
-}
 
-echo "\n\n";
-
-// Example 3: Retrieve Address
-if (isset($createdAddressId)) {
-    echo "Example 3: Retrieve Address by ID\n";
-    echo str_repeat('-', 50) . "\n";
     try {
-        $address = $api->addresses()->getAddressById($createdAddressId, $token);
-        
-        if (isset($address['error'])) {
-            echo "✗ Error: " . print_r($address['error'], true) . "\n";
+        $result = $api->addresses()->listAddresses($data);
+        if (isset($result['error'])) {
+            printError("Error: " . print_r($result['error'], true) . "\n");
         } else {
-            echo "✓ Address retrieved successfully\n";
-            echo "  Address ID: " . ($address['address_id'] ?? $address['id'] ?? 'N/A') . "\n";
-            echo "  First Name: " . ($address['first_name'] ?? 'N/A') . "\n";
-            echo "  Last Name: " . ($address['last_name'] ?? 'N/A') . "\n";
-            echo "  City: " . ($address['city'] ?? 'N/A') . "\n";
+            printSuccess("Addresses retrieved successfully!\n");
+            print_r($result);
         }
     } catch (Exception $e) {
-        echo "✗ Exception: " . $e->getMessage() . "\n";
+        printException($e);
     }
-    
-    echo "\n\n";
-    
-    // Example 4: Update Address
-    echo "Example 4: Update Address\n";
-    echo str_repeat('-', 50) . "\n";
+}
+
+/**
+ * Create Address - Function to be called from cli.php or standalone
+ */
+function createAddressExample()
+{
+    // Initialize API
+    $config = loadConfig();
+    $api = initApi($config);
+
+    $userId = getInput("Enter User ID (optional): ", false);
+    printInfo("Enter address details:\n");
+
+    // Required fields
+    $firstName = getInput("First Name: ");
+    $lastName = getInput("Last Name: ");
+    $address1 = getInput("Address Line 1: ");
+    $area = getInput("Area/Locality: ");
+    $city = getInput("City: ");
+    $state = getInput("State: ");
+    $pincode = getInput("Pincode: ");
+    $addressType = getInput("Address Type (home/office/etc): ");
+
+    if (
+        $firstName === null || $lastName === null || $address1 === null || $area === null ||
+        $city === null || $state === null || $pincode === null || $addressType === null
+    ) {
+        printError("First Name, Last Name, Address Line 1, Area, City, State, Pincode, and Address Type are required.\n");
+        return;
+    }
+
+    // Build address object
+    $addressData = [
+        JsonKeys::FIRST_NAME => $firstName,
+        JsonKeys::LAST_NAME => $lastName,
+        JsonKeys::ADDRESS_1 => $address1,
+        JsonKeys::AREA => $area,
+        JsonKeys::CITY => $city,
+        JsonKeys::STATE => $state,
+        JsonKeys::PINCODE => $pincode,
+        JsonKeys::ADDRESS_TYPE => $addressType
+    ];
+
+    // Optional fields
+    $street = getInput("Street (optional): ", false);
+    if ($street)
+        $addressData[JsonKeys::STREET] = $street;
+
+    $landmark = getInput("Landmark (optional): ", false);
+    if ($landmark)
+        $addressData[JsonKeys::LANDMARK] = $landmark;
+
+    $label = getInput("Label (optional): ", false);
+    if ($label)
+        $addressData['label'] = $label;
+
+    $country = getInput("Country (optional, default: India): ", false);
+    $addressData[JsonKeys::COUNTRY] = $country ?: 'India';
+
+    $linkAs = getInput("Link As (shipping/billing, optional): ", false);
+    if ($linkAs && in_array(strtolower($linkAs), ['shipping', 'billing'])) {
+        $addressData[JsonKeys::LINK_AS] = strtolower($linkAs);
+    }
+
+    // Build request body with addresses array
+    $data = [
+        JsonKeys::ADDRESSES => [$addressData]
+    ];
+
+    if ($userId) {
+        $data['user_id'] = $userId;
+    }
+
+    // Amount and currency for shipping calculation
+    $amount = getInput("Order Amount (for shipping calculation, default: 5000): ", false);
+    $currency = getInput("Currency (default: INR): ", false);
+
+    $data[JsonKeys::AMOUNT] = $amount ? floatval($amount) : 5000;
+    $data[JsonKeys::CURRENCY] = $currency ?: 'INR';
+
     try {
-        $updatedAddress = $api->addresses()->updateAddress($createdAddressId, [
-            'first_name' => 'John Updated',
-            'last_name' => 'Doe Updated',
-            'address_1' => '456 Updated Street'
-        ], $token);
-        
-        if (isset($updatedAddress['error'])) {
-            echo "✗ Error: " . print_r($updatedAddress['error'], true) . "\n";
+        $result = $api->addresses()->createAddress($data);
+        if (isset($result['error'])) {
+            printError("Error: " . print_r($result['error'], true) . "\n");
         } else {
-            echo "✓ Address updated successfully\n";
-            echo "  Updated First Name: " . ($updatedAddress['first_name'] ?? 'N/A') . "\n";
-            echo "  Updated Last Name: " . ($updatedAddress['last_name'] ?? 'N/A') . "\n";
+            printSuccess("Address created successfully!\n");
+            print_r($result);
         }
     } catch (Exception $e) {
-        echo "✗ Exception: " . $e->getMessage() . "\n";
+        printException($e);
     }
-    
-    echo "\n\n";
-    
-    // Example 5: Check Address Eligibility (using pincode)
-    echo "Example 5: Check Address Eligibility (using pincode)\n";
-    echo str_repeat('-', 50) . "\n";
+}
+
+/**
+ * Update Address - Function to be called from cli.php or standalone
+ */
+function updateAddressExample()
+{
+    // Initialize API
+    $config = loadConfig();
+    $api = initApi($config);
+
+    $addressId = getInput("Enter Address ID: ");
+    if ($addressId === null) {
+        printError("Address ID is required.\n");
+        return;
+    }
+    printInfo("Enter address fields to update (press Enter to skip)\n");
+    $data = [];
+    $line1 = getInput("Address Line 1: ", false);
+    if ($line1)
+        $data[JsonKeys::ADDRESS_1] = $line1;
+    $city = getInput("City: ", false);
+    if ($city)
+        $data[JsonKeys::CITY] = $city;
     try {
-        $eligibility = $api->addresses()->checkAddressEligibility([
-            'pincode' => '400001', // Required: pincode for eligibility check
-            'country_code' => 'IND', // Optional: ISO3 country code (default: IND)
-            'amount' => 1000, // Optional: order amount to calculate shipping charges
-            'currency' => 'INR' // Optional: currency code
-        ], $token);
-        
-        if (isset($eligibility['error'])) {
-            echo "✗ Error: " . print_r($eligibility['error'], true) . "\n";
+        $result = $api->addresses()->updateAddress($addressId, $data);
+        if (isset($result['error'])) {
+            printError("Error: " . print_r($result['error'], true) . "\n");
         } else {
-            echo "✓ Eligibility check completed\n";
-            echo "  Eligible for Shipping: " . (isset($eligibility['is_eligible_for_shipping']) ? ($eligibility['is_eligible_for_shipping'] ? 'Yes' : 'No') : 'N/A') . "\n";
-            if (isset($eligibility['max_shipping_charges'])) {
-                echo "  Max Shipping Charges: " . $eligibility['max_shipping_charges'] . "\n";
+            printSuccess("Address updated successfully!\n");
+            print_r($result);
+        }
+    } catch (Exception $e) {
+        printException($e);
+    }
+}
+
+/**
+ * Delete Address - Function to be called from cli.php or standalone
+ */
+function deleteAddressExample()
+{
+    // Initialize API
+    $config = loadConfig();
+    $api = initApi($config);
+
+    $addressId = getInput("Enter Address ID: ");
+    if ($addressId === null) {
+        printError("Address ID is required.\n");
+        return;
+    }
+    try {
+        $result = $api->addresses()->deleteAddress($addressId);
+        if (isset($result['error'])) {
+            printError("Error: " . print_r($result['error'], true) . "\n");
+        } else {
+            printSuccess("Address deleted successfully!\n");
+        }
+    } catch (Exception $e) {
+        printException($e);
+    }
+}
+
+
+/**
+ * Import Addresses - Function to be called from cli.php or standalone
+ */
+function importAddressesExample()
+{
+    // Initialize API
+    $config = loadConfig();
+    $api = initApi($config);
+
+    printInfo("Import addresses from a provider (e.g., shiprocket)\n");
+    printInfo("This is a two-step process:\n");
+    printInfo("1. First call 'auth' command to initiate import\n");
+    printInfo("2. Then call 'verify' command with OTP to complete import\n\n");
+
+    echo "Select command:\n";
+    echo "1. auth (Initiate address import)\n";
+    echo "2. verify (Verify OTP and import addresses)\n";
+    $commandChoice = getInput("Enter choice (1 or 2): ");
+
+    if ($commandChoice === '1') {
+        $command = 'auth';
+        $provider = getInput("Enter Provider Code (e.g., shiprocket): ");
+        if ($provider === null) {
+            printError("Provider code is required.\n");
+            return;
+        }
+        $importData = [
+            'command' => $command,
+            'provider' => $provider
+        ];
+    } elseif ($commandChoice === '2') {
+        $command = 'verify';
+        $provider = getInput("Enter Provider Code (e.g., shiprocket): ");
+        $otp = getInput("Enter OTP (required): ");
+        if ($provider === null || $otp === null) {
+            printError("Provider code and OTP are required.\n");
+            return;
+        }
+        $importData = [
+            'command' => $command,
+            'provider' => $provider,
+            'otp' => $otp
+        ];
+    } else {
+        printError("Invalid choice. Must be 1 or 2.\n");
+        return;
+    }
+
+    try {
+        $result = $api->addresses()->importAddresses($importData);
+        if (isset($result['error'])) {
+            printError("Error: " . print_r($result['error'], true) . "\n");
+        } else {
+            printSuccess("Import request processed successfully!\n");
+            if (isset($result['next']) && is_array($result['next'])) {
+                echo "\nNext steps:\n";
+                foreach ($result['next'] as $nextAction) {
+                    if (isset($nextAction['action'])) {
+                        echo "  - Action: " . $nextAction['action'] . "\n";
+                        if (isset($nextAction['url'])) {
+                            echo "    URL: " . $nextAction['url'] . "\n";
+                        }
+                        if (isset($nextAction['required_parameters'])) {
+                            echo "    Required Parameters: " . implode(', ', $nextAction['required_parameters']) . "\n";
+                        }
+                    }
+                }
             }
-            if (isset($eligibility['pincode_details'])) {
-                $details = $eligibility['pincode_details'];
+            if (!isset($result['success']) || !$result['success']) {
+                print_r($result);
+            }
+        }
+    } catch (Exception $e) {
+        printException($e);
+    }
+}
+
+/**
+ * Check Address Eligibility - Function to be called from cli.php or standalone
+ */
+function checkAddressEligibilityExample()
+{
+    // Initialize API
+    $config = loadConfig();
+    $api = initApi($config);
+
+    printInfo("Enter eligibility check details:\n");
+    $pincode = getInput("Pincode (required): ");
+    if ($pincode === null) {
+        printError("Pincode is required.\n");
+        return;
+    }
+
+    $data = [JsonKeys::PINCODE => $pincode];
+
+    $countryCode = getInput("Country Code (optional, default: IND): ", false);
+    if ($countryCode) {
+        $data[JsonKeys::COUNTRY_CODE] = $countryCode;
+    }
+
+    $amount = getInput("Order Amount (optional, for shipping calculation): ", false);
+    if ($amount) {
+        $data['amount'] = floatval($amount);
+    }
+
+    $currency = getInput("Currency (optional, e.g., INR): ", false);
+    if ($currency) {
+        $data[JsonKeys::CURRENCY] = $currency;
+    }
+
+    try {
+        $result = $api->addresses()->checkAddressEligibility($data);
+        if (isset($result['error'])) {
+            printError("Error: " . print_r($result['error'], true) . "\n");
+        } else {
+            printSuccess("Address eligibility checked!\n");
+            echo "  Eligible for Shipping: " . (isset($result['is_eligible_for_shipping']) ? ($result['is_eligible_for_shipping'] ? 'Yes' : 'No') : 'N/A') . "\n";
+            if (isset($result['max_shipping_charges'])) {
+                echo "  Max Shipping Charges: " . $result['max_shipping_charges'] . "\n";
+            }
+            if (isset($result['pincode_details'])) {
+                $details = $result['pincode_details'];
                 echo "  City: " . ($details['city'] ?? 'N/A') . "\n";
                 echo "  State: " . ($details['state'] ?? 'N/A') . "\n";
                 echo "  Country Code: " . ($details['country_code'] ?? 'N/A') . "\n";
             }
         }
     } catch (Exception $e) {
-        echo "✗ Exception: " . $e->getMessage() . "\n";
+        printException($e);
     }
-    
-    echo "\n\n";
-    
-    // Example 6: Link Address with Order
-    echo "Example 6: Link Address with Order\n";
-    echo str_repeat('-', 50) . "\n";
-    echo "Note: This requires an order_id. Creating a test order first...\n";
+}
+
+/**
+ * Link Address with Order - Function to be called from cli.php or standalone
+ */
+function linkAddressWithOrderExample()
+{
+    // Initialize API
+    $config = loadConfig();
+    $api = initApi($config);
+
+    $addressId = getInput("Enter Address ID (required): ");
+    if ($addressId === null) {
+        printError("Address ID is required.\n");
+        return;
+    }
+    $orderId = getInput("Enter Order ID (optional): ", false);
+    echo "Link as:\n";
+    echo "1. shipping\n";
+    echo "2. billing\n";
+    $linkAsChoice = getInput("Enter choice (1 or 2): ");
+    $linkAs = ($linkAsChoice === '1') ? 'shipping' : (($linkAsChoice === '2') ? 'billing' : null);
+    if ($linkAs === null) {
+        printError("Invalid choice. Must be 'shipping' or 'billing'.\n");
+        return;
+    }
+    $linkData = [
+        JsonKeys::ADDRESS => [
+            JsonKeys::ADDRESS_ID => $addressId
+        ],
+        'link_as' => $linkAs
+    ];
+    if ($orderId) {
+        $linkData[JsonKeys::ORDER_ID] = $orderId;
+    }
     try {
-        // First create an order
-        $testOrder = $api->orders()->createOrder([
-            'invoice_id' => 'test_link_' . time(),
-            'amount_before_tax' => 100,
-            'tax' => 10,
-            'total_amount' => 110,
-            'currency' => 'INR',
-            'user' => [
-                'email' => 'test@example.com',
-                'first_name' => 'Test',
-                'last_name' => 'User',
-                'mobile_number' => '9876543210',
-                'country_code' => '+91'
-            ]
-        ], $token);
-        
-        if (isset($testOrder['error'])) {
-            echo "✗ Error creating test order: " . print_r($testOrder['error'], true) . "\n";
+        $result = $api->addresses()->linkAddressWithOrder($linkData);
+        if (isset($result['error'])) {
+            printError("Error: " . print_r($result['error'], true) . "\n");
         } else {
-            $testOrderId = $testOrder['order_id'] ?? $testOrder['nimbbl_order_id'] ?? null;
-            if ($testOrderId) {
-                // Link address with order
-                $linkResult = $api->addresses()->linkAddressWithOrder([
-                    'order_id' => $testOrderId,
-                    'address' => [
-                        'address_id' => $createdAddressId // Use saved address
-                    ],
-                    'link_as' => 'shipping' // or 'billing'
-                ], $token);
-                
-                if (isset($linkResult['error'])) {
-                    echo "✗ Error: " . print_r($linkResult['error'], true) . "\n";
-                } else {
-                    echo "✓ Address linked with order successfully\n";
-                    echo "  Order ID: {$testOrderId}\n";
-                    echo "  Address ID: {$createdAddressId}\n";
+            printSuccess("Order linked to address successfully!\n");
+            if (isset($result['success']) && $result['success']) {
+                echo "  " . ($result['message'] ?? 'Address linked successfully') . "\n";
+            } else {
+                if (!isset($result['response']) || !empty($result['response'])) {
+                    print_r($result);
                 }
             }
         }
     } catch (Exception $e) {
-        echo "✗ Exception: " . $e->getMessage() . "\n";
+        printException($e);
     }
-    
-    echo "\n\n";
 }
 
-// Example 7: Import Addresses (using provider/command pattern)
-echo "Example 7: Import Addresses (using provider/command pattern)\n";
-echo str_repeat('-', 50) . "\n";
-echo "Note: Import addresses uses a two-step process: 'auth' then 'verify'\n";
-try {
-    // Step 1: Auth command
-    echo "Step 1: Auth command\n";
-    $authResult = $api->addresses()->importAddresses([
-        'provider' => 'shiprocket', // Provider name (e.g., 'shiprocket')
-        'command' => 'auth' // First step: authentication
-    ], $token);
-    
-    if (isset($authResult['error'])) {
-        echo "✗ Error in auth: " . print_r($authResult['error'], true) . "\n";
-        echo "  (This is expected if provider is not configured)\n";
-    } else {
-        echo "✓ Auth command successful\n";
-        echo "  Provider: shiprocket\n";
-        echo "  Command: auth\n";
-        echo "\n  Note: After successful auth, you would receive an OTP.\n";
-        echo "  Then call verify command with the OTP.\n";
-        
-        // Step 2: Verify command (commented out as it requires actual OTP)
-        echo "\nStep 2: Verify command (example - requires actual OTP)\n";
-        echo "  To complete import, call:\n";
-        echo "  \$api->addresses()->importAddresses([\n";
-        echo "      'provider' => 'shiprocket',\n";
-        echo "      'command' => 'verify',\n";
-        echo "      'otp' => '123456' // Actual OTP received\n";
-        echo "  ]);\n";
+// Only run the full example if this file is executed directly (not included)
+if (basename($_SERVER['PHP_SELF']) === 'addresses-examples.php') {
+    // Validate configuration early
+    $config = loadConfig();
+    if (empty($config['access_key']) || $config['access_key'] === 'your_access_key_here') {
+        printError("Please update example/config.php with your Nimbbl credentials.\n");
+        printInfo("Copy config.php.example to config.php and update:\n");
+        printInfo("  - access_key\n");
+        printInfo("  - access_secret\n");
+        printInfo("  - api_url (optional, defaults to UAT)\n");
+        exit(1);
     }
-} catch (Exception $e) {
-    echo "✗ Exception: " . $e->getMessage() . "\n";
-    echo "  (This is expected if provider is not configured)\n";
+
+    echo Colors::CYAN . Colors::BOLD . "=== Addresses API Examples ===" . Colors::RESET . "\n\n";
+
+    // Run List Addresses example
+    echo Colors::BLUE . Colors::BOLD . "Step 1: List Addresses" . Colors::RESET . "\n";
+    echo str_repeat('-', 60) . "\n";
+    listAddressesExample();
+
+    echo "\n";
+
+    // Run Create Address example
+    echo Colors::BLUE . Colors::BOLD . "Step 2: Create Address" . Colors::RESET . "\n";
+    echo str_repeat('-', 60) . "\n";
+    createAddressExample();
+
+    echo "\n";
+
+    // Run Update Address example
+    echo Colors::BLUE . Colors::BOLD . "Step 3: Update Address" . Colors::RESET . "\n";
+    echo str_repeat('-', 60) . "\n";
+    updateAddressExample();
+
+    echo "\n";
+
+    // Run Delete Address example
+    echo Colors::BLUE . Colors::BOLD . "Step 4: Delete Address" . Colors::RESET . "\n";
+    echo str_repeat('-', 60) . "\n";
+    deleteAddressExample();
+
+    echo "\n";
+
+    echo "\n";
+
+    // Run Import Addresses example
+    echo Colors::BLUE . Colors::BOLD . "Step 5: Import Addresses" . Colors::RESET . "\n";
+    echo str_repeat('-', 60) . "\n";
+    importAddressesExample();
+
+    echo "\n";
+
+    // Run Check Address Eligibility example
+    echo Colors::BLUE . Colors::BOLD . "Step 6: Check Address Eligibility" . Colors::RESET . "\n";
+    echo str_repeat('-', 60) . "\n";
+    checkAddressEligibilityExample();
+
+    echo "\n";
+
+    // Run Link Address with Order example
+    echo Colors::BLUE . Colors::BOLD . "Step 7: Link Address with Order" . Colors::RESET . "\n";
+    echo str_repeat('-', 60) . "\n";
+    linkAddressWithOrderExample();
+
+    echo "\n" . Colors::CYAN . Colors::BOLD . "=== Addresses API Examples Complete ===" . Colors::RESET . "\n";
+    echo "\nFor more information, see: https://nimbbl.biz/docs/category/api-reference/addresses/\n";
 }
-
-echo "\n";
-echo "=== Addresses API Examples Complete ===\n";
-echo "\nFor more information, see: https://nimbbl.biz/docs/category/api-reference/addresses/\n";
-

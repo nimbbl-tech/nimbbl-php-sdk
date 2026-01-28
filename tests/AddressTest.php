@@ -11,14 +11,14 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../example/config.php';
 require_once __DIR__ . '/../example/utils/helpers.php';
 
-use Nimbbl\Api\Api;
-use Nimbbl\Api\Request;
+use Nimbbl\Api\RestClient\NimbblClient;
+use Nimbbl\Api\RestClient\Request;
 
 // Load configuration
 $config = loadConfig();
 
 // Initialize Nimbbl API
-$api = new Api(
+$api = new NimbblClient(
     $config['access_key'],
     $config['access_secret'],
     $config['api_url'],
@@ -53,10 +53,10 @@ $order = $api->orders()->createOrder([
 
 $orderToken = $order['token'] ?? null;
 if (!$orderToken) {
-    echo "✗ Error: Order token not available\n";
+    echo "[ERROR] Error: Order token not available\n";
     exit(1);
 }
-echo "✓ Order token obtained\n\n";
+echo "[SUCCESS] Order token obtained\n\n";
 
 // Test 1: List Addresses
 echo "Test 1: List Addresses\n";
@@ -65,17 +65,17 @@ try {
     $addresses = $api->addresses()->listAddresses([
         'user_id' => 'test_user_123' // Replace with actual user_id
     ], $orderToken);
-    
+
     if (isset($addresses['items'])) {
-        echo "✓ Successfully retrieved " . count($addresses['items']) . " addresses\n";
+        echo "[SUCCESS] Successfully retrieved " . count($addresses['items']) . " addresses\n";
         if (count($addresses['items']) > 0) {
             echo "  First address ID: " . ($addresses['items'][0]['id'] ?? $addresses['items'][0]['address_id'] ?? 'N/A') . "\n";
         }
     } else {
-        echo "✗ Error: " . print_r($addresses, true) . "\n";
+        echo "[ERROR] Error: " . print_r($addresses, true) . "\n";
     }
 } catch (Exception $e) {
-    echo "✗ Exception: " . $e->getMessage() . "\n";
+    echo "[ERROR] Exception: " . $e->getMessage() . "\n";
 }
 
 echo "\n\n";
@@ -86,22 +86,29 @@ echo str_repeat('-', 50) . "\n";
 try {
     $newAddress = $api->addresses()->createAddress([
         'user_id' => 'test_user_123',
-        'address_1' => '123 Main Street',
+        'first_name' => 'Test',
+        'last_name' => 'User',
+        'email' => 'test@example.com',
+        'mobile_number' => '9876543210',
+        'country_code' => '+91',
+        'street' => '123 Main Street',
+        'landmark' => 'Near Station',
+        'area' => 'Bandra West',
         'city' => 'Mumbai',
         'state' => 'Maharashtra',
-        'pincode' => '400001',
-        'address_type' => 'home'
+        'pin_code' => '400001',
+        'type' => 'home'
     ], $orderToken);
-    
+
     if (isset($newAddress['error'])) {
-        echo "✗ Error: " . print_r($newAddress['error'], true) . "\n";
+        echo "[ERROR] Error: " . print_r($newAddress['error'], true) . "\n";
     } else {
-        echo "✓ Address created successfully\n";
+        echo "[SUCCESS] Address created successfully\n";
         echo "  Address ID: " . ($newAddress['id'] ?? $newAddress['address_id'] ?? 'N/A') . "\n";
         $createdAddressId = $newAddress['id'] ?? $newAddress['address_id'] ?? null;
     }
 } catch (Exception $e) {
-    echo "✗ Exception: " . $e->getMessage() . "\n";
+    echo "[ERROR] Exception: " . $e->getMessage() . "\n";
     $createdAddressId = null;
 }
 
@@ -113,20 +120,20 @@ if (isset($createdAddressId) && $orderToken) {
     echo str_repeat('-', 50) . "\n";
     try {
         $address = $api->addresses()->getAddressById($createdAddressId, $orderToken);
-        
+
         if (isset($address['error'])) {
-            echo "✗ Error: " . print_r($address['error'], true) . "\n";
+            echo "[ERROR] Error: " . print_r($address['error'], true) . "\n";
         } else {
-            echo "✓ Address retrieved successfully\n";
+            echo "[SUCCESS] Address retrieved successfully\n";
             echo "  Address ID: " . ($address['id'] ?? $address['address_id'] ?? 'N/A') . "\n";
             echo "  City: " . ($address['city'] ?? 'N/A') . "\n";
         }
     } catch (Exception $e) {
-        echo "✗ Exception: " . $e->getMessage() . "\n";
+        echo "[ERROR] Exception: " . $e->getMessage() . "\n";
     }
-    
+
     echo "\n\n";
-    
+
     // Test 4: Update Address
     echo "Test 4: Update Address\n";
     echo str_repeat('-', 50) . "\n";
@@ -135,19 +142,19 @@ if (isset($createdAddressId) && $orderToken) {
             'address_1' => '456 Updated Street',
             'city' => 'Delhi'
         ], $orderToken);
-        
+
         if (isset($updatedAddress['error'])) {
-            echo "✗ Error: " . print_r($updatedAddress['error'], true) . "\n";
+            echo "[ERROR] Error: " . print_r($updatedAddress['error'], true) . "\n";
         } else {
-            echo "✓ Address updated successfully\n";
+            echo "[SUCCESS] Address updated successfully\n";
             echo "  Updated City: " . ($updatedAddress['city'] ?? 'N/A') . "\n";
         }
     } catch (Exception $e) {
-        echo "✗ Exception: " . $e->getMessage() . "\n";
+        echo "[ERROR] Exception: " . $e->getMessage() . "\n";
     }
-    
+
     echo "\n\n";
-    
+
     // Test 5: Check Address Eligibility
     $orderId = $order['nimbbl_order_id'] ?? $order['order_id'] ?? null;
     if ($orderId) {
@@ -158,35 +165,35 @@ if (isset($createdAddressId) && $orderToken) {
                 'address_id' => $createdAddressId,
                 'order_id' => $orderId
             ], $orderToken);
-            
+
             if (isset($eligibility['error'])) {
-                echo "✗ Error: " . print_r($eligibility['error'], true) . "\n";
+                echo "[ERROR] Error: " . print_r($eligibility['error'], true) . "\n";
             } else {
-                echo "✓ Eligibility check completed\n";
+                echo "[SUCCESS] Eligibility check completed\n";
                 echo "  Eligible: " . (isset($eligibility['eligible']) ? ($eligibility['eligible'] ? 'Yes' : 'No') : 'N/A') . "\n";
             }
         } catch (Exception $e) {
-            echo "✗ Exception: " . $e->getMessage() . "\n";
+            echo "[ERROR] Exception: " . $e->getMessage() . "\n";
         }
-        
+
         echo "\n\n";
     }
-    
+
     // Test 6: Delete Address (cleanup)
     echo "Test 6: Delete Address (Cleanup)\n";
     echo str_repeat('-', 50) . "\n";
     try {
         $deleteResult = $api->addresses()->deleteAddress($createdAddressId, $orderToken);
-        
+
         if (isset($deleteResult['error'])) {
-            echo "✗ Error: " . print_r($deleteResult['error'], true) . "\n";
+            echo "[ERROR] Error: " . print_r($deleteResult['error'], true) . "\n";
         } else {
-            echo "✓ Address deleted successfully\n";
+            echo "[SUCCESS] Address deleted successfully\n";
         }
     } catch (Exception $e) {
-        echo "✗ Exception: " . $e->getMessage() . "\n";
+        echo "[ERROR] Exception: " . $e->getMessage() . "\n";
     }
-    
+
     echo "\n\n";
 }
 

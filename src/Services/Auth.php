@@ -1,8 +1,16 @@
 <?php
 
-namespace Nimbbl\Api;
+namespace Nimbbl\Api\Services;
 
 use Exception;
+use Nimbbl\Api\RestClient\Request;
+use Nimbbl\Api\RestClient\NimbblClient;
+use Nimbbl\Api\Common\ApiConstants;
+use Nimbbl\Api\Common\HttpStatusCodes;
+use Nimbbl\Api\Common\SdkConstants;
+use Nimbbl\Api\Common\ErrorCodes;
+use Nimbbl\Api\Common\ErrorMessages;
+use Nimbbl\Api\Common\JsonKeys;
 use Nimbbl\Api\Exception\NimbblException;
 
 /**
@@ -19,7 +27,7 @@ use Nimbbl\Api\Exception\NimbblException;
  * - Refresh Token: Uses a refresh_token (from order creation) to generate a new token
  * - Refresh Token API requires Bearer authentication with a regular token
  */
-#[AllowDynamicProperties]
+#[\AllowDynamicProperties]
 class Auth
 {
     /**
@@ -30,7 +38,7 @@ class Auth
      */
     public function generateToken($attributes = null)
     {
-        // Delegate to Request::generateToken() which uses Api::getKey() and getSecret()
+        // Delegate to Request::generateToken() which uses NimbblClient::getKey() and getSecret()
         // This avoids code duplication and maintains consistency
         $request = new Request();
         return $request->generateToken();
@@ -48,23 +56,25 @@ class Auth
         if (empty($refreshToken)) {
             throw new NimbblException(
                 ErrorMessages::REFRESH_TOKEN_REQUIRED,
-                'REFRESH_TOKEN_REQUIRED',
-                400
+                ErrorCodes::REFRESH_TOKEN_REQUIRED,
+                null,
+                HttpStatusCodes::BAD_REQUEST
             );
         }
-        
+
         if (empty($token)) {
             throw new NimbblException(
                 ErrorMessages::TOKEN_REQUIRED,
-                'TOKEN_REQUIRED',
-                401
+                ErrorCodes::TOKEN_REQUIRED,
+                null,
+                HttpStatusCodes::UNAUTHORIZED
             );
         }
-        
+
         $attributes = [
-            'refresh_token' => $refreshToken
+            JsonKeys::REFRESH_TOKEN => $refreshToken
         ];
-        
+
         $request = new Request();
         return $request->request(
             ApiConstants::HTTP_POST,
@@ -74,5 +84,5 @@ class Auth
             SdkConstants::COMPONENT_AUTH
         );
     }
-}
 
+}

@@ -11,14 +11,14 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../example/config.php';
 require_once __DIR__ . '/../example/utils/helpers.php';
 
-use Nimbbl\Api\Api;
-use Nimbbl\Api\Request;
+use Nimbbl\Api\RestClient\NimbblClient;
+use Nimbbl\Api\RestClient\Request;
 
 // Load configuration
 $config = loadConfig();
 
 // Initialize Nimbbl API
-$api = new Api(
+$api = new NimbblClient(
     $config['access_key'],
     $config['access_secret'],
     $config['api_url'],
@@ -53,10 +53,10 @@ $order = $api->orders()->createOrder([
 
 $orderToken = $order['token'] ?? null;
 if (!$orderToken) {
-    echo "✗ Error: Order token not available\n";
+    echo "[ERROR] Error: Order token not available\n";
     exit(1);
 }
-echo "✓ Order token obtained\n\n";
+echo "[SUCCESS] Order token obtained\n\n";
 
 // Test 1: Create Payment Link
 echo "Test 1: Create Payment Link\n";
@@ -64,7 +64,7 @@ echo str_repeat('-', 50) . "\n";
 try {
     $paymentLink = $api->paymentLinks()->createPaymentLink([
         'invoice_id' => 'PL_TEST_' . time() . '_' . rand(1000, 9999),
-        'total_amount' => 1000,
+        'amount' => 1000,
         'currency' => 'INR',
         'user' => [
             'email' => 'test@example.com',
@@ -72,20 +72,21 @@ try {
             'last_name' => 'Customer',
             'mobile_number' => '9876543210',
             'country_code' => '+91'
-        ]
-    ], $orderToken);
-    
+        ],
+        'expires_at' => time() + 86400
+    ], $merchantToken);
+
     if (isset($paymentLink['error'])) {
-        echo "✗ Error: " . print_r($paymentLink['error'], true) . "\n";
+        echo "[ERROR] Error: " . print_r($paymentLink['error'], true) . "\n";
         exit(1);
     }
-    
-    echo "✓ Payment link created successfully\n";
+
+    echo "[SUCCESS] Payment link created successfully\n";
     echo "  Payment Link ID: " . ($paymentLink['payment_link_id'] ?? 'N/A') . "\n";
     echo "  Short URL: " . ($paymentLink['short_url'] ?? 'N/A') . "\n";
     $paymentLinkId = $paymentLink['payment_link_id'] ?? null;
 } catch (Exception $e) {
-    echo "✗ Exception: " . $e->getMessage() . "\n";
+    echo "[ERROR] Exception: " . $e->getMessage() . "\n";
     exit(1);
 }
 
@@ -99,20 +100,20 @@ if (isset($paymentLinkId) && $orderToken) {
         $enquiry = $api->paymentLinks()->enquiryPaymentLink([
             'payment_link_id' => $paymentLinkId
         ], $orderToken);
-        
+
         if (isset($enquiry['error'])) {
-            echo "✗ Error: " . print_r($enquiry['error'], true) . "\n";
+            echo "[ERROR] Error: " . print_r($enquiry['error'], true) . "\n";
         } else {
-            echo "✓ Payment link enquiry successful\n";
+            echo "[SUCCESS] Payment link enquiry successful\n";
             echo "  Status: " . ($enquiry['status'] ?? 'N/A') . "\n";
             echo "  Amount: " . ($enquiry['amount'] ?? 'N/A') . "\n";
         }
     } catch (Exception $e) {
-        echo "✗ Exception: " . $e->getMessage() . "\n";
+        echo "[ERROR] Exception: " . $e->getMessage() . "\n";
     }
-    
+
     echo "\n\n";
-    
+
     // Test 3: Update Payment Link
     echo "Test 3: Update Payment Link\n";
     echo str_repeat('-', 50) . "\n";
@@ -121,19 +122,19 @@ if (isset($paymentLinkId) && $orderToken) {
             'payment_link_id' => $paymentLinkId,
             'total_amount' => 1500
         ], $orderToken);
-        
+
         if (isset($updatedLink['error'])) {
-            echo "✗ Error: " . print_r($updatedLink['error'], true) . "\n";
+            echo "[ERROR] Error: " . print_r($updatedLink['error'], true) . "\n";
         } else {
-            echo "✓ Payment link updated successfully\n";
+            echo "[SUCCESS] Payment link updated successfully\n";
             echo "  Updated Amount: " . ($updatedLink['amount'] ?? 'N/A') . "\n";
         }
     } catch (Exception $e) {
-        echo "✗ Exception: " . $e->getMessage() . "\n";
+        echo "[ERROR] Exception: " . $e->getMessage() . "\n";
     }
-    
+
     echo "\n\n";
-    
+
     // Test 4: Payment Link Actions (e.g., cancel, pause, resume)
     echo "Test 4: Payment Link Actions\n";
     echo str_repeat('-', 50) . "\n";
@@ -142,19 +143,19 @@ if (isset($paymentLinkId) && $orderToken) {
             'payment_link_id' => $paymentLinkId,
             'action' => 'cancel' // or 'send'
         ], $orderToken);
-        
+
         if (isset($action['error'])) {
-            echo "✗ Error: " . print_r($action['error'], true) . "\n";
+            echo "[ERROR] Error: " . print_r($action['error'], true) . "\n";
             echo "  (This is expected if action is not supported or link is already cancelled)\n";
         } else {
-            echo "✓ Payment link action executed successfully\n";
+            echo "[SUCCESS] Payment link action executed successfully\n";
             echo "  Action: cancel\n";
         }
     } catch (Exception $e) {
-        echo "✗ Exception: " . $e->getMessage() . "\n";
+        echo "[ERROR] Exception: " . $e->getMessage() . "\n";
         echo "  (This is expected if action is not supported)\n";
     }
-    
+
     echo "\n\n";
 }
 

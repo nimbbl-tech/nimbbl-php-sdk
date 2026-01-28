@@ -1,8 +1,22 @@
 <?php
 
-namespace Nimbbl\Api;
+namespace Nimbbl\Api\RestClient;
 
-class Api
+use Nimbbl\Api\Common\ApiConstants;
+use Nimbbl\Api\Common\SdkConstants;
+use Nimbbl\Api\Common\ErrorMessages;
+use Nimbbl\Api\Log\Logger;
+use Nimbbl\Api\Services\Order;
+use Nimbbl\Api\Services\Transaction;
+use Nimbbl\Api\Services\Addresses;
+use Nimbbl\Api\Services\Payment;
+use Nimbbl\Api\Services\PaymentLink;
+use Nimbbl\Api\Services\CheckoutUtilities;
+use Nimbbl\Api\Services\Auth;
+use Nimbbl\Api\Services\Refund;
+use Nimbbl\Api\Common\SignatureVerifier;
+
+class NimbblClient
 {
     protected static $baseUrl = ApiConstants::BASE_URL;
 
@@ -17,6 +31,22 @@ class Api
     protected static $merchantId;
 
     protected static $logFile;
+
+    /**
+     * Enable encryption for outgoing request payloads.
+     * Mirrors .NET SDK `encryptPayload` flag (ENCRYPT_PAYLOAD).
+     *
+     * @var bool
+     */
+    protected static $encryptPayload = false;
+
+    /**
+     * Prevent duplicate "ApiClient initialized" logs.
+     * In the .NET sample app, this is effectively logged once at application startup.
+     *
+     * @var bool
+     */
+    protected static $initLogEmitted = false;
 
     const VERSION = SdkConstants::SDK_VERSION;
 
@@ -34,12 +64,14 @@ class Api
      * @param string|null $apiVersion API version
      * @param string|null $token Optional Bearer token (if provided, will be used instead of Basic Auth)
      * @param string|null $logFile Optional log file path (if provided, will be used for logging)
+     * @param bool $encryptPayload Optional: enable encryption for outgoing payloads (default false)
      */
-    public function __construct($key, $secret, $url=null, $apiVersion = null, $token = null, $logFile = null)
+    public function __construct($key, $secret, $url = null, $apiVersion = null, $token = null, $logFile = null, $encryptPayload = false)
     {
         self::$key = $key;
         self::$secret = $secret;
         self::$token = $token;
+        self::$encryptPayload = (bool) $encryptPayload;
 
         if ($url !== null) {
             // Support combined base URL with version (e.g., https://api.nimbbl.tech/api/v3)
@@ -58,6 +90,27 @@ class Api
         if ($logFile !== null) {
             self::setLogFile($logFile);
         }
+
+        // Match .NET SDK log sequence: emit an initialization DEBUG line
+        try {
+            if (!self::$initLogEmitted) {
+                $logger = Logger::getInstance(self::$logFile);
+                $logger->debug("ApiClient initialized - encryptPayload: " . (self::$encryptPayload ? "True" : "False"));
+                self::$initLogEmitted = true;
+            }
+        } catch (\Throwable $e) {
+            // ignore logging failures
+        }
+    }
+
+    /**
+     * Check whether outgoing payload encryption is enabled.
+     *
+     * @return bool
+     */
+    public static function isEncryptPayloadEnabled()
+    {
+        return (bool) self::$encryptPayload;
     }
 
     /*
@@ -74,14 +127,13 @@ class Api
      */
     public function __get($name)
     {
-        // Users API has been removed - throw exception if accessed
-        if (strtolower($name) === 'user' || strtolower($name) === 'users') {
-            throw new \Exception(ErrorMessages::USERS_API_REMOVED);
+
+        $className = 'Nimbbl\\Api\\Services\\' . ucwords($name);
+        if (class_exists($className)) {
+            return new $className();
         }
-        
-        $className = __NAMESPACE__ . '\\' . ucwords($name);
-        $entity = new $className();
-        return $entity;
+
+        throw new \Exception("Service $name not found.");
     }
 
     public static function getBaseUrl()
@@ -89,7 +141,8 @@ class Api
         return self::$baseUrl;
     }
 
-    public static function getAPIVersion() {
+    public static function getAPIVersion()
+    {
         return self::$apiVersion;
     }
 
@@ -111,7 +164,11 @@ class Api
     public static function getTokenEndpoint()
     {
         $baseUrl = rtrim(self::getBaseUrl(), '/');
-        // Base URL already includes /api/, so just append the endpoint path
+        // If apiVersion is intentionally blank (combined endpoint already includes /vX),
+        // avoid double-prefixing the version segment.
+        if (self::$apiVersion === '') {
+            return $baseUrl . '/generate-token';
+        }
         return $baseUrl . '/' . ApiConstants::AUTH_GENERATE_TOKEN;
     }
 
@@ -119,15 +176,24 @@ class Api
     {
         $baseUrl = rtrim(self::getBaseUrl(), '/');
         $relativeUrl = ltrim($relativeUrl, '/');
+
+        // When using a combined endpoint that already contains /vX, strip the leading version
+        // from relative URLs defined with ApiConstants (which already include the version).
+        if (self::$apiVersion === '' && preg_match('#/v\\d+$#', $baseUrl)) {
+            $relativeUrl = preg_replace('#^v\\d+/#', '', $relativeUrl);
+        }
+
         return $baseUrl . '/' . $relativeUrl;
     }
 
-    public static function setMerchantId($merchantId){
+    public static function setMerchantId($merchantId)
+    {
         self::$merchantId = $merchantId;
         return true;
     }
 
-    public static function getMerchantId(){
+    public static function getMerchantId()
+    {
         return self::$merchantId;
     }
 
@@ -139,9 +205,11 @@ class Api
      */
     public static function setLogFile($logFile)
     {
-        self::$logFile = $logFile;
+        // Match .NET sample behavior: use dated log file naming.
+        $resolved = Logger::resolveLogFilePath($logFile);
+        self::$logFile = $resolved;
         // Reinitialize Logger with new log file if already instantiated
-        $logger = Logger::getInstance($logFile);
+        Logger::getInstance($resolved);
     }
 
     /**
@@ -187,11 +255,11 @@ class Api
     /**
      * Get Addresses API client
      * 
-     * @return Address
+     * @return Addresses
      */
     public function addresses()
     {
-        return new Address();
+        return new Addresses();
     }
 
     /**
@@ -235,12 +303,14 @@ class Api
     }
 
     /**
-     * Get Webhook Handler
+     * Get Signature Verifier Utils
      * 
-     * @return Webhook
+     * @return SignatureVerifier
      */
-    public function webhook()
+    public function signatureVerifier()
     {
-        return new Webhook();
+        return new SignatureVerifier();
     }
+
+
 }

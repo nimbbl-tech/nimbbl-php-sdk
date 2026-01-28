@@ -91,17 +91,15 @@ composer require nimbbl/nimbbl-sdk
 <?php
 require_once 'vendor/autoload.php';
 
-use Nimbbl\Api\Api;
+use Nimbbl\Api\RestClient\NimbblClient;
 
 // Initialize SDK
-$api = new Api(
+$api = new NimbblClient(
     'your_access_key',
     'your_access_secret',
     'https://api.nimbbl.tech/api/',
     'v3'
 );
-
-// Generate token
 $tokenResponse = $api->auth()->generateToken();
 $merchantToken = $tokenResponse['token'];
 
@@ -165,15 +163,6 @@ $payment = $api->payments()->initiatePayment($paymentData, $orderToken);
 ### Webhook Handling
 
 ```php
-$webhook = new \Nimbbl\Api\Webhook();
-$payload = $webhook->getPayloadFromInput();
-$signature = $webhook->getSignatureFromHeaders($_SERVER);
-
-$event = $webhook->verifyAndParse($payload, $signature, $accessSecret);
-
-if ($event && $event['event_type'] === 'payment.success') {
-    // Payment successful - fulfill order
-}
 ```
 
 ## Examples

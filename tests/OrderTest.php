@@ -4,22 +4,35 @@ declare(strict_types=1);
 
 // require_once __DIR__ . '/../vendor/autoload.php';
 
-use Nimbbl\Api\Api;
-use Nimbbl\Api\Request;
+require_once __DIR__ . '/../example/utils/helpers.php';
+
+use Nimbbl\Api\RestClient\NimbblClient;
+use Nimbbl\Api\RestClient\Request;
 use PHPUnit\Framework\TestCase;
 use Nimbbl\Api\NimbblOrder;
-use Nimbbl\Tests\TestCredentials;
 
 final class OrderTest extends TestCase
 {
+    private $config;
+
+    protected function setUp(): void
+    {
+        $this->config = loadConfig();
+    }
+
     public function testRetrieveOne(): void
     {
-        $api = new Api(TestCredentials::ACCESS_KEY, TestCredentials::ACCESS_SECRET);
+        $api = new NimbblClient(
+            $this->config['access_key'],
+            $this->config['access_secret'],
+            $this->config['api_url'],
+            $this->config['api_version']
+        );
 
         // Generate merchant token first
         $request = new Request();
         $merchantToken = $request->generateToken()['token'];
-        
+
         // Create order to get order token
         $orderData = [
             'invoice_id' => 'TEST_' . time(),
@@ -37,18 +50,18 @@ final class OrderTest extends TestCase
         ];
         $order = $api->orders()->createOrder($orderData, $merchantToken);
         $orderToken = $order['token'] ?? null;
-        
+
         if (!$orderToken) {
             $this->markTestSkipped('Order token not available');
             return;
         }
-        
+
         $orderId = $order['nimbbl_order_id'] ?? $order['order_id'] ?? null;
         if (!$orderId) {
             $this->markTestSkipped('Order ID not available');
             return;
         }
-        
+
         $retrievedOrder = $api->orders()->getOrderById($orderId, $orderToken);
         $this->assertArrayNotHasKey('error', $retrievedOrder);
         $this->assertEquals($retrievedOrder['nimbbl_order_id'] ?? $retrievedOrder['order_id'], $orderId);
@@ -56,7 +69,12 @@ final class OrderTest extends TestCase
 
     public function testCreateOne(): void
     {
-        $api = new Api(TestCredentials::ACCESS_KEY, TestCredentials::ACCESS_SECRET);
+        $api = new NimbblClient(
+            $this->config['access_key'],
+            $this->config['access_secret'],
+            $this->config['api_url'],
+            $this->config['api_version']
+        );
 
         // Generate merchant token
         $request = new Request();

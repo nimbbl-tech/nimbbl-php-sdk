@@ -5,7 +5,7 @@
 
 Official PHP SDK for integrating with the Nimbbl Payment Gateway API. This SDK provides a simple and intuitive interface to interact with all Nimbbl API endpoints.
 
-## 📦 Installation
+##  Installation
 
 ### Using Composer (Recommended)
 
@@ -22,16 +22,16 @@ composer require nimbbl/nimbbl-sdk
 require_once 'path/to/nimbbl-php-sdk/vendor/autoload.php';
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ```php
 <?php
 require_once 'vendor/autoload.php';
 
-use Nimbbl\Api\Api;
+use Nimbbl\Api\RestClient\NimbblClient;
 
 // Initialize the SDK
-$api = new Api(
+$api = new NimbblClient(
     'your_access_key',
     'your_access_secret',
     'https://api.nimbbl.tech/api/', // API base URL
@@ -65,9 +65,9 @@ if (!isset($order['error'])) {
 }
 ```
 
-## 📚 Features
+##  Features
 
-### ✅ Complete API Coverage
+### [OK] Complete API Coverage
 
 - **Orders API** - Create, retrieve orders (uses Order Token)
 - **Payments API** - Initiate, complete payments, resend OTP (uses Order Token)
@@ -77,7 +77,7 @@ if (!isset($order['error'])) {
 - **Transactions API** - Transaction enquiry (by order_id, invoice_id, or transaction_id) (uses Merchant Token)
 - **Checkout Utilities API** - Payment modes, banks, wallets, EMIs, offers, card BIN, UPI validation (uses Order Token)
 
-### 🔑 Token Management
+###  Token Management
 
 The SDK uses two types of tokens:
 
@@ -107,19 +107,19 @@ $enquiry = $api->transactions()->transactionEnquiry($data, $merchantToken);
 $refund = $api->refunds()->initiateRefund($refundData, $merchantToken);
 ```
 
-### 🔐 Security Features
+###  Security Features
 
 - **Webhook Signature Verification** - Verify webhook authenticity
 - **Payment Signature Verification** - Verify payment responses
 - **Comprehensive Error Handling** - Detailed exception hierarchy
 
-### 📊 Logging
+###  Logging
 
 - **Comprehensive Logging** - Detailed logging of all API requests and responses
 - **Multiple Output Channels** - Logs to file, PHP error log, and console
 - **Masked Sensitive Data** - Automatically masks API keys and secrets in logs
 
-### 🎯 Framework Agnostic
+###  Framework Agnostic
 
 Works seamlessly with:
 - Plain PHP
@@ -128,7 +128,7 @@ Works seamlessly with:
 - Symfony
 - Any PHP framework
 
-## 📖 Documentation
+##  Documentation
 
 ### Comprehensive Documentation
 
@@ -383,15 +383,62 @@ $binData = $api->checkoutUtilities()->getCardBinData([
 $validation = $api->checkoutUtilities()->validateUpiVpa(['upi_id' => 'user@paytm'], $orderToken);
 ```
 
-### Encryption/Decryption
+### Payment Callback Handling
 
 **Note:** Encrypted payloads are not enabled by default. Please reach out to [support@nimbbl.tech](mailto:support@nimbbl.tech) if you want this functionality.
 
-The encryption utility is used to decrypt responses from Standard Checkout integration. When your client forwards the checkout response to your server, it may include an `encrypted_response` field that needs to be decrypted.
+The `PayloadHelperUtils` class provides utilities for parsing and handling payment callbacks from Standard Checkout integration. It automatically handles base64 encoding, JSON parsing, encryption decryption, and unwrapping of `globalHandleCheckoutResponse` events.
 
 **References:**
-- [Standard Checkout Integration Guide](https://nimbbl.biz/docs/standard-checkout/completing-integration/) - Understanding encrypted responses
+- [Standard Checkout Integration Guide](https://nimbbl.biz/docs/standard-checkout/completing-integration/) - Understanding callbacks
 - [Encryption/Decryption Guide](https://nimbbl.biz/docs/guides/encrypt-decrypt-payload/) - Detailed encryption implementation
+
+```php
+use Nimbbl\Api\Common\PayloadHelperUtils;
+use Nimbbl\Api\Common\SignatureVerifier;
+use Nimbbl\Api\Common\JsonKeys;
+
+// Example 1: Handle payment callback (GET with base64-encoded response)
+// The response parameter may be base64-encoded or raw JSON
+$responseParam = $_GET['response'] ?? '';
+$accessSecret = 'your_access_secret';
+
+// PayloadHelperUtils::parseResponse() automatically detects and handles:
+// - Base64 decoding
+// - JSON parsing
+// - Encryption decryption
+// - globalHandleCheckoutResponse unwrapping
+$parsed = PayloadHelperUtils::parseResponse($responseParam, $accessSecret);
+
+// Verify signature using verifyCallbackSignature
+$verifier = new SignatureVerifier();
+$result = $verifier->verifyCallbackSignature($parsed, $accessSecret);
+
+if ($result['success']) {
+    // Extract payment details - prioritize transaction.status
+    $status = $parsed[JsonKeys::TRANSACTION][JsonKeys::STATUS] 
+        ?? $parsed[JsonKeys::STATUS] ?? null;
+    
+    $orderId = $parsed[JsonKeys::NIMBBL_ORDER_ID] ?? null;
+    // Extract transaction_id only from transaction object
+    $transactionId = $parsed[JsonKeys::TRANSACTION][JsonKeys::TRANSACTION_ID] ?? null;
+    
+    // Process payment based on status
+    if ($status === 'succeeded' || $status === 'success') {
+        // Payment successful
+    }
+}
+
+// Example 2: Handle callback from popup mode (POST JSON)
+$raw = file_get_contents('php://input');
+$parsed = PayloadHelperUtils::parseResponse($raw, $accessSecret);
+$result = $verifier->verifyCallbackSignature($parsed, $accessSecret);
+// ... process callback
+```
+
+### Encryption/Decryption
+
+For direct encryption/decryption operations, use the `Encryption` class:
 
 ```php
 use Nimbbl\Api\Encryption;
@@ -399,71 +446,42 @@ use Nimbbl\Api\Encryption;
 // Initialize encryption with access secret
 $encryption = new Encryption($accessSecret);
 
-// Example 1: Decrypt Standard Checkout response
-// When your client forwards the checkout response, it may contain encrypted_response
-$checkoutResponse = [
-    'event_type' => 'globalHandleCheckoutResponse',
-    'payload' => [
-        'encrypted_response' => '3164351ca6195e9871cca9de3117cb8f...' // Encrypted response from client
-    ]
-];
-
-if (isset($checkoutResponse['payload']['encrypted_response'])) {
-    // Decrypt the encrypted response
-    $decrypted = $encryption->decrypt($checkoutResponse['payload']['encrypted_response'], true);
-    
-    // Now you can access the decrypted response
-    $status = $decrypted['status']; // 'success', 'failed', or 'pending'
-    $orderId = $decrypted['nimbbl_order_id'];
-    $transactionId = $decrypted['nimbbl_transaction_id'];
-    $signature = $decrypted['nimbbl_signature'];
-    
-    // Validate the signature before processing
-    // ... validation logic
-}
-
-// Example 2: Encrypt data for API requests (if needed)
+// Encrypt data for API requests (if needed)
 $data = [
     'user_id' => 'user_123',
     'email' => 'user@example.com'
 ];
 $encrypted = $encryption->encrypt($data);
 
-// Send encrypted payload to API in 'encrypted_payload' field
-$order = $api->orders()->createOrder([
-    'encrypted_payload' => $encrypted,
-    // ... other fields
-], $token);
+// Decrypt encrypted response
+$decrypted = $encryption->decrypt($encrypted, true); // true = return as array
 ```
 
 ### Webhook Handling
 
 ```php
-use Nimbbl\Api\Api;
-use Nimbbl\Api\Webhook;
-use Nimbbl\Api\Model\WebhookEvent;
-
-// Initialize API and get webhook handler
-$api = new Api($accessKey, $accessSecret);
-$webhook = $api->webhook();
+use Nimbbl\Api\Common\PayloadHelperUtils;
+use Nimbbl\Api\Common\SignatureVerifier;
 
 // Get webhook payload
-$payload = $webhook->getPayloadFromInput();
+$payload = file_get_contents('php://input');
+$accessSecret = 'your_access_secret';
 
-// Get signature from headers
-$headers = getallheaders();
-$signature = $webhook->getSignatureFromHeaders($headers);
-
-// Verify webhook
-$eventData = $webhook->verifyAndParse($payload, $signature, $secret);
-
-if ($eventData) {
-    $event = new WebhookEvent($eventData);
+if ($payload) {
+    // Parse and unwrap the payload using PayloadHelperUtils
+    // This handles encryption, unwrapping, and globalHandleCheckoutResponse automatically
+    $eventData = PayloadHelperUtils::parse($payload, $accessSecret);
     
-    if ($event->isPaymentCaptured()) {
-        // Handle payment success
-    } elseif ($event->isPaymentFailed()) {
-        // Handle payment failure
+    // Verify webhook signature
+    $verifier = new SignatureVerifier();
+    $result = $verifier->verifySignature($eventData, $accessSecret);
+    
+    if ($result['success']) {
+        // Process event
+        $eventType = $eventData['event_type'] ?? null;
+        $orderId = $eventData['nimbbl_order_id'] ?? null;
+        // Extract transaction_id only from transaction object
+        $transactionId = $eventData['transaction']['transaction_id'] ?? null;
     }
 }
 ```
@@ -510,7 +528,7 @@ php tests/PaymentTest.php
 
 See [tests/README.md](tests/README.md) for more details.
 
-## 📝 Examples
+##  Examples
 
 Comprehensive examples are available in the `example/` directory:
 
@@ -540,7 +558,7 @@ The SDK now exclusively uses v3 API endpoints. All v2 endpoints and backward com
 4. **Exception Hierarchy**: New exception classes for better error handling
 5. **Webhook Handling**: New Webhook class and WebhookEvent model
 
-## 📋 Requirements
+##  Requirements
 
 - PHP >= 7.4
 - JSON extension
@@ -560,7 +578,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 📞 Support
+##  Support
 
 For support, email support@nimbbl.biz
 

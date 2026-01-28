@@ -311,7 +311,7 @@ echo "Decrypted: " . json_encode($decrypted, JSON_PRETTY_PRINT) . "\n";
 
 // Verify
 assert($decrypted === $testData, "Encryption/decryption failed");
-echo "✓ Test passed\n";
+echo "[SUCCESS] Test passed\n";
 ```
 
 ---

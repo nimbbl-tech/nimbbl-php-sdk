@@ -1,6 +1,6 @@
 <?php
 
-namespace Nimbbl\Api;
+namespace Nimbbl\Api\Common;
 
 /**
  * Error Messages Constants
@@ -27,8 +27,6 @@ class ErrorMessages
     const UNSUPPORTED_OPERATION_ORDER_MODIFY = 'Unsupported operation. Orders cannot be modified after creation.';
     const RETRIEVE_ONE_NOT_SUPPORTED = 'retrieveOne() is not part of the official API for this entity type.';
 
-    // API removal errors
-    const USERS_API_REMOVED = 'Users API has been removed from the SDK. It is not an official public API.';
 
     // Error prefixes
     const ERROR_PREFIX_CREATION = 'creation error: ';
@@ -54,5 +52,54 @@ class ErrorMessages
     const WEBHOOK_GET_PAYLOAD_FROM_INPUT_ERROR = 'Webhook get payload from input ';
     const WEBHOOK_GET_PAYLOAD_FROM_INPUT_FAILED = 'Webhook get payload from input: Failed to read from php://input';
     const WEBHOOK_PAYLOAD_READ_FAILED = 'Failed to read webhook payload from input stream';
+
+    // Payment signature verification messages
+    const SIGNATURE_VERIFICATION_FAILED_MISSING_PARAMS = 'Signature verification failed: Missing secret, transaction ID, signature, or amount';
+    const SIGNATURE_VERIFICATION_FAILED = 'Signature verification failed';
+    const SIGNATURE_VERIFICATION_SUCCESS = 'Signature verification successful';
+    const SIGNATURE_VERIFICATION_ERROR = 'Signature verification ';
+
+    // Legacy constants for backward compatibility
+    const PAYMENT_SIGNATURE_VERIFICATION_FAILED_MISSING_PARAMS = 'Signature verification failed: Missing secret, transaction ID, signature, or amount';
+    const PAYMENT_SIGNATURE_VERIFICATION_FAILED = 'Signature verification failed';
+    const PAYMENT_SIGNATURE_VERIFICATION_SUCCESS = 'Signature verification successful';
+    const PAYMENT_SIGNATURE_VERIFICATION_ERROR = 'Signature verification ';
+
+    // Error codes
+    const ERROR_CODE_SIGNATURE_VERIFICATION_MISSING_SECRET = 'SIGNATURE_VERIFICATION_MISSING_SECRET';
+    const ERROR_CODE_SIGNATURE_VERIFICATION_MISSING_PARAMS = 'SIGNATURE_VERIFICATION_MISSING_PARAMS';
+    const ERROR_CODE_SIGNATURE_VERIFICATION_FAILED = 'SIGNATURE_VERIFICATION_FAILED';
+    const ERROR_CODE_SIGNATURE_VERIFICATION_ERROR = 'SIGNATURE_VERIFICATION_ERROR';
+    const ERROR_CODE_DESERIALIZATION_ERROR = 'DESERIALIZATION_ERROR';
+    const ERROR_CODE_SDK_EXCEPTION = 'SDK_EXCEPTION';
+    const ERROR_CODE_UNSUPPORTED_OPERATION = 'UNSUPPORTED_OPERATION';
+    const ERROR_CODE_AUTH_ERROR = 'AUTH_ERROR';
+
+    // Error response keys
+    const ERROR_KEY_ERROR_CODE = 'nimbbl_error_code';
+    const ERROR_KEY_MERCHANT_MESSAGE = 'nimbbl_merchant_message';
+    const RESPONSE_KEY_SUCCESS = 'success';
+    const RESPONSE_KEY_ERROR = 'error';
+    const RESPONSE_KEY_MESSAGE = 'message';
+    const RESPONSE_KEY_RAW_BODY = 'raw_body';
+
+    // Common messages
+    const MESSAGE_OPERATION_COMPLETED_SUCCESSFULLY = 'Operation completed successfully';
+    const MESSAGE_UNABLE_TO_PARSE_JSON = 'Unable to parse response body as JSON';
+    const MESSAGE_API_REQUEST_FAILED = 'API request failed';
+    const MESSAGE_AUTHENTICATION_FAILED = 'Authentication failed';
+    const MESSAGE_UNKNOWN_ERROR = 'Unknown error';
+
+    // Encryption error messages (format strings)
+    // {0} = payload type/name (e.g., "refund", "order", "transaction enquiry", "list banks", "list wallets")
+    // {1} = exception error message
+    const ENCRYPTION_ERROR_FORMAT = 'Failed to encrypt %s payload: %s';
+
+    // Signature/Webhook Verification Messages
+    const MESSAGE_SIGNATURE_VERIFICATION_SUCCESS = 'Signature verification succeeded';
+    const MESSAGE_SIGNATURE_VERIFICATION_FAILED = 'Signature verification failed';
+    const MESSAGE_SIGNATURE_VERIFICATION_MISSING_PARAMS = 'Signature verification failed - Missing parameters';
+    const MESSAGE_WEBHOOK_VERIFICATION_FAILED = 'Webhook verification failed';
+    const MESSAGE_WEBHOOK_PARSE_ERROR = 'Webhook parse error';
 }
 

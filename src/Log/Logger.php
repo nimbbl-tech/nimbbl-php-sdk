@@ -1,18 +1,22 @@
 <?php
 
-namespace Nimbbl\Api;
+namespace Nimbbl\Api\Log;
+
+use Nimbbl\Api\Common\SdkConstants;
+use Nimbbl\Api\RestClient\NimbblClient;
 
 /**
  * Logger with simple formatted output
  * 
  * Features:
- * - Legacy log() method
  * - Convenience level methods (info, debug, error, warning, critical, exception)
  * - Writes to log file, error_log (non-CLI), and stdout (CLI) in a uniform format
  */
 class Logger
 {
     private static $instance = null;
+    private static $enableDebugLogging = false;
+    private static $loggingEnabled = true; // Kept for BC but logic removed
     private $logFile;
     private $logDir;
 
@@ -20,18 +24,27 @@ class Logger
     private const LOGGER_FORMAT = '[%s][%s %s][%s][%s:%d][%s]: %s';
     private const LOGGER_DATEFMT = 'Y-m-d H:i:s';
 
+    // Log Levels
+    public const LOG_ERROR = 'ERROR';
+    public const LOG_REQUEST = 'REQUEST';
+    public const LOG_RESPONSE = 'RESPONSE';
+    public const LOG_INFO = 'INFO';
+    public const LOG_DEBUG = 'DEBUG';
+    public const LOG_WARNING = 'WARNING';
+    public const LOG_DESERIALIZATION_ERROR = 'DESERIALIZATION_ERROR';
+
     private function __construct($logFile = null)
     {
         if ($logFile === null) {
             // Check if Api class has a log file configured
-            if (class_exists('Nimbbl\Api\Api') && Api::getLogFile() !== null) {
-                $logFile = Api::getLogFile();
+            if (class_exists('Nimbbl\Api\RestClient\NimbblClient') && NimbblClient::getLogFile() !== null) {
+                $logFile = NimbblClient::getLogFile();
             } else {
                 // Calculate path relative to src/Log/ directory: go up two levels to project root, then logs/
                 $logFile = dirname(__FILE__) . '/../../logs/nimbbl_debug.log';
             }
         }
-        $this->logFile = $logFile;
+        $this->logFile = self::resolveLogFilePath($logFile);
         $this->logDir = dirname($logFile);
         if (!is_dir($this->logDir)) {
             mkdir($this->logDir, 0755, true);
@@ -40,11 +53,14 @@ class Logger
 
     public static function getInstance($logFile = null)
     {
+        if ($logFile !== null) {
+            $logFile = self::resolveLogFilePath($logFile);
+        }
         // If logFile is provided and instance exists with different path, reset instance
         if (self::$instance !== null && $logFile !== null && self::$instance->logFile !== $logFile) {
             self::$instance = null;
         }
-        
+
         if (self::$instance === null) {
             self::$instance = new self($logFile);
         }
@@ -52,72 +68,138 @@ class Logger
     }
 
     /**
-     * Legacy log method
-     * 
-     * @param string $message Log message
-     * @param string $level Log level
-     * @param string $component Component name
-     * @return void
+     * Resolve the effective log file path used by the SDK (includes the date suffix).
+     * Idempotent: if the input already ends with _ddMMyyyy before the extension, it will not add another suffix.
+     *
+     * Example: logs/nimbbl_debug.log -> logs/nimbbl_debug_06012026.log
      */
-    public function log($message, $level = 'INFO', $component = 'NimbblSDK')
+    public static function resolveLogFilePath($logFilePath)
     {
-        $timestamp = date(self::LOGGER_DATEFMT);
-        $logMessage = sprintf(
-            self::LOGGER_FORMAT,
-            $timestamp,
-            SdkConstants::SDK_NAME,
-            SdkConstants::SDK_VERSION,
-            strtoupper($level),
-            $component,
-            0,
-            '-',
-            $message
-        ) . PHP_EOL;
+        if (!is_string($logFilePath) || trim($logFilePath) === '') {
+            return $logFilePath;
+        }
+        // Don't mutate stream targets or /dev/null
+        if (strpos($logFilePath, 'php://') === 0 || $logFilePath === '/dev/null') {
+            return $logFilePath;
+        }
 
-        $this->writeLog($logMessage, $level, $message);
+        $dir = dirname($logFilePath);
+        $ext = pathinfo($logFilePath, PATHINFO_EXTENSION);
+        $name = pathinfo($logFilePath, PATHINFO_FILENAME);
+
+        // Already has _ddMMyyyy suffix
+        if (preg_match('/_\d{8}$/', $name) === 1) {
+            return $logFilePath;
+        }
+
+        $suffix = date('dmY'); // ddMMyyyy (local date, same as .NET sample)
+        $newName = $name . '_' . $suffix . ($ext ? ('.' . $ext) : '');
+        return ($dir && $dir !== '.') ? ($dir . DIRECTORY_SEPARATOR . $newName) : $newName;
     }
 
     /**
-     * Build log line with caller info
+     * Enable debug logging
+     * 
+     * @return void
      */
-    private function logWithCaller($level, $message, $exception = null)
+    public static function enableDebugLogging()
     {
-        $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
-        $caller = $backtrace[1] ?? [];
-        $module = isset($caller['file']) ? basename($caller['file']) : 'unknown';
-        $line = $caller['line'] ?? 0;
-        $function = $caller['function'] ?? '-';
+        self::$enableDebugLogging = true;
+    }
 
-        $timestamp = date(self::LOGGER_DATEFMT);
-        $payload = $message;
-        if ($exception instanceof \Exception) {
-            $payload .= ' Exception: ' . $exception->getMessage() . "\nTrace: " . $exception->getTraceAsString();
+    /**
+     * Enable all logging (No-op for BC with .NET parity)
+     */
+    public static function enableLogging()
+    {
+        // Parity with .NET: INFO and above are always enabled
+    }
+
+    /**
+     * Disable INFO/DEBUG logging (No-op for BC with .NET parity)
+     */
+    public static function disableLogging()
+    {
+        // Parity with .NET: INFO and above are always enabled
+    }
+
+    /**
+     * Check if logging is enabled (Always true for parity with .NET)
+     * 
+     * @return bool
+     */
+    public static function isLoggingEnabled()
+    {
+        return true;
+    }
+
+    /**
+     * Disable debug logging
+     * 
+     * @return void
+     */
+    public static function disableDebugLogging()
+    {
+        self::$enableDebugLogging = false;
+    }
+
+    /**
+     * Check if debug logging is enabled
+     * 
+     * @return bool
+     */
+    public static function isDebugLoggingEnabled()
+    {
+        return self::$enableDebugLogging;
+    }
+
+    /**
+     * Log method - main logging method
+     * 
+     * DEBUG level logs are only printed if debug logging is enabled.
+     * INFO, ERROR, WARNING, CRITICAL logs are always printed.
+     * 
+     * @param string $message Log message
+     * @param string $level Log level (INFO, DEBUG, ERROR, WARNING, CRITICAL)
+     * @param string $component Component name (used as module name)
+     * @param int|null $line Line number (optional, will be 0 if not provided)
+     * @param string|null $function Function name (optional, will be '-' if not provided)
+     * @return void
+     */
+    public function log($message, $level = 'INFO', $component = 'NimbblSDK', $line = null, $function = null)
+    {
+        $upperLevel = strtoupper($level);
+
+        // Match .NET behavior: INFO/WARNING/ERROR/CRITICAL always logged
+        // Only DEBUG logs are gated
+        if ($upperLevel === 'DEBUG' && !self::$enableDebugLogging) {
+            return;
         }
 
+        // Use UTC timestamps to match .NET sample output
+        $timestamp = gmdate(self::LOGGER_DATEFMT);
         $logMessage = sprintf(
             self::LOGGER_FORMAT,
             $timestamp,
             SdkConstants::SDK_NAME,
             SdkConstants::SDK_VERSION,
-            strtoupper($level),
-            $module,
-            $line,
-            $function,
-            $payload
+            $upperLevel,
+            $component,
+            $line ?? 0,
+            $function ?? '-',
+            $message
         ) . PHP_EOL;
 
-        $this->writeLog($logMessage, $level, $payload);
+        $this->writeLog($logMessage);
     }
 
     /**
      * Write log to file and output
      * 
      * @param string $logMessage Formatted log message
-     * @param string $level Log level
-     * @param string $originalMessage Original message for color detection
      * @return void
      */
-    private function writeLog($logMessage, $level, $originalMessage)
+    private function writeLog($logMessage)
     {
         // Write to error log (for web server environments) - only if not CLI
         if (php_sapi_name() !== 'cli') {
@@ -130,14 +212,165 @@ class Logger
         // Print to stdout if CLI - plain text (no colors)
         if (php_sapi_name() === 'cli') {
             echo $logMessage;
+            // Flush output buffer to ensure logs appear immediately
+            if (ob_get_level() > 0) {
+                ob_flush();
+            }
+            flush();
         }
     }
 
     // Convenience level methods (no APIContext required)
-    public function info($message, $exception = null)      { $this->logWithCaller('INFO', $message, $exception); }
-    public function debug($message, $exception = null)     { $this->logWithCaller('DEBUG', $message, $exception); }
-    public function error($message, $exception = null)     { $this->logWithCaller('ERROR', $message, $exception); }
-    public function warning($message, $exception = null)   { $this->logWithCaller('WARNING', $message, $exception); }
-    public function critical($message, $exception = null)  { $this->logWithCaller('CRITICAL', $message, $exception); }
-    public function exception($message, \Exception $exception) { $this->logWithCaller('ERROR', $message, $exception); }
-} 
+    // All convenience methods extract caller info and use log() method
+
+    /**
+     * Log INFO level message
+     * INFO logs are always printed regardless of debug flag
+     */
+    public function info($message, $exception = null)
+    {
+        $callerInfo = $this->getCallerInfo();
+        $formattedMessage = $this->formatMessage($message, $exception);
+        $this->log($formattedMessage, 'INFO', $callerInfo['module'], $callerInfo['line'], $callerInfo['function']);
+    }
+
+    /**
+     * Log DEBUG level message
+     * DEBUG logs are only printed if debug logging is enabled
+     */
+    public function debug($message, $exception = null)
+    {
+        $callerInfo = $this->getCallerInfo();
+        $formattedMessage = $this->formatMessage($message, $exception);
+        $this->log($formattedMessage, 'DEBUG', $callerInfo['module'], $callerInfo['line'], $callerInfo['function']);
+    }
+
+    /**
+     * Log ERROR level message
+     * ERROR logs are always printed
+     */
+    public function error($message, $exception = null)
+    {
+        $callerInfo = $this->getCallerInfo();
+        $formattedMessage = $this->formatMessage($message, $exception);
+        $this->log($formattedMessage, 'ERROR', $callerInfo['module'], $callerInfo['line'], $callerInfo['function']);
+    }
+
+    /**
+     * Log WARNING level message
+     * WARNING logs are always printed
+     */
+    public function warning($message, $exception = null)
+    {
+        $callerInfo = $this->getCallerInfo();
+        $formattedMessage = $this->formatMessage($message, $exception);
+        $this->log($formattedMessage, 'WARNING', $callerInfo['module'], $callerInfo['line'], $callerInfo['function']);
+    }
+
+    /**
+     * Log CRITICAL level message
+     * CRITICAL logs are always printed
+     */
+    public function critical($message, $exception = null)
+    {
+        $callerInfo = $this->getCallerInfo();
+        $formattedMessage = $this->formatMessage($message, $exception);
+        $this->log($formattedMessage, 'CRITICAL', $callerInfo['module'], $callerInfo['line'], $callerInfo['function']);
+    }
+
+    /**
+     * Log exception as ERROR level
+     * Exception logs are always printed
+     */
+    public function exception($message, \Exception $exception)
+    {
+        $callerInfo = $this->getCallerInfo();
+        $formattedMessage = $this->formatMessage($message, $exception);
+        $this->log($formattedMessage, 'EXCEPTION', $callerInfo['module'], $callerInfo['line'], $callerInfo['function']);
+    }
+
+    /**
+     * Get caller information from backtrace
+     * 
+     * Skips the convenience method (debug, info, error, etc.) and gets the actual caller
+     * 
+     * @return array Array with 'module', 'line', and 'function' keys
+     */
+    private function getCallerInfo()
+    {
+        // We want:
+        // - module:line => the call-site location where logger method was invoked
+        // - function => the function/method that invoked the logger
+        $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 32);
+
+        $loggerClass = __CLASS__;
+        $loggerFns = ['log', 'debug', 'info', 'warning', 'error', 'critical', 'exception', 'getCallerInfo', 'formatMessage', 'writeLog'];
+
+        $callSiteFrame = null;
+        $callerFrame = null;
+
+        // Find the first frame for a logger public method; its 'file'/'line' point to the call-site.
+        for ($i = 0; $i < count($backtrace); $i++) {
+            $f = $backtrace[$i] ?? null;
+            if (!is_array($f))
+                continue;
+            $cls = $f['class'] ?? null;
+            $fn = $f['function'] ?? null;
+            if ($cls === $loggerClass && is_string($fn) && in_array($fn, $loggerFns, true)) {
+                // Skip internal logger helpers; look for an actual logging entrypoint
+                if (in_array($fn, ['getCallerInfo', 'formatMessage', 'writeLog'], true)) {
+                    continue;
+                }
+                $callSiteFrame = $f;
+                // Caller is the next non-logger frame after this
+                for ($j = $i + 1; $j < count($backtrace); $j++) {
+                    $c = $backtrace[$j] ?? null;
+                    if (!is_array($c))
+                        continue;
+                    $cCls = $c['class'] ?? null;
+                    $cFn = $c['function'] ?? '';
+                    if ($cCls === $loggerClass) {
+                        continue;
+                    }
+                    // Skip anonymous/internal wrappers
+                    if (is_string($cFn) && in_array($cFn, $loggerFns, true)) {
+                        continue;
+                    }
+                    $callerFrame = $c;
+                    break;
+                }
+                break;
+            }
+        }
+
+        $moduleFile = $callSiteFrame['file'] ?? ($callerFrame['file'] ?? null);
+        $module = $moduleFile ? basename($moduleFile) : 'unknown';
+        $line = $callSiteFrame['line'] ?? 0;
+
+        $fn = $callerFrame['function'] ?? '-';
+        $cls = $callerFrame['class'] ?? '';
+        $type = $callerFrame['type'] ?? '';
+        $function = ($cls !== '' && $fn !== '-') ? ($cls . '.' . $fn) : ($fn ?: '-');
+
+        return [
+            'module' => $module,
+            'line' => $line,
+            'function' => $function,
+        ];
+    }
+
+    /**
+     * Format message with exception if provided
+     * 
+     * @param string $message Log message
+     * @param \Exception|null $exception Optional exception
+     * @return string Formatted message
+     */
+    private function formatMessage($message, $exception = null)
+    {
+        if ($exception instanceof \Exception) {
+            return $message . ' Exception: ' . $exception->getMessage() . "\nTrace: " . $exception->getTraceAsString();
+        }
+        return $message;
+    }
+}

@@ -1,11 +1,12 @@
 <?php
 
-namespace Nimbbl\Api;
+namespace Nimbbl\Api\Common;
 
 class ApiConstants
 {
     // Base API URL and version
-    const BASE_URL = 'https://api.nimbbl.tech/api/';
+    const API_PATH = '/api/';
+    const BASE_URL = 'https://api.nimbbl.tech' . self::API_PATH;
     const API_VERSION = 'v3';
 
     // Orders
@@ -31,7 +32,7 @@ class ApiConstants
     const PAYMENT_LINK_CREATE = self::API_VERSION . '/payment-link';
     const PAYMENT_LINK_UPDATE = self::API_VERSION . '/payment-link';
     const PAYMENT_LINK_ENQUIRY = self::API_VERSION . '/payment-link/enquiry';
-    const PAYMENT_LINK_ACTIONS = self::API_VERSION . '/payment-link';
+    const PAYMENT_LINK_ACTIONS = self::API_VERSION . '/payment-link/actions';
 
     // Checkout Utilities
     const CHECKOUT_PAYMENT_MODES = self::API_VERSION . '/payment-modes';
@@ -40,6 +41,7 @@ class ApiConstants
     const CHECKOUT_LIST_EMIS = self::API_VERSION . '/emis';
     const CHECKOUT_OFFERS = self::API_VERSION . '/offers';
     const CHECKOUT_GET_BIN_DATA = self::API_VERSION . '/get-bin-data';
+    const CHECKOUT_GET_CARD_DETAILS = self::API_VERSION . '/get-card-details';
     const CHECKOUT_VALIDATE_VPA = self::API_VERSION . '/validate-vpa';
     const CHECKOUT_GET_UPI_APP_DETAILS = self::API_VERSION . '/get-upi-app-details';
 
@@ -59,5 +61,22 @@ class ApiConstants
     const HTTP_PATCH = 'PATCH';
     const HTTP_PUT = 'PUT';
     const HTTP_DELETE = 'DELETE';
+
+    // Token expiration threshold (in seconds)
+    // Tokens are considered expired if they will expire within this threshold
+    // Calculation: Default token expiration is 20 minutes (1200 seconds)
+    // - 1 minute (60 seconds) deducted for client HTTP timeout buffer
+    // - 1 minute (60 seconds) deducted for server timeout buffer
+    // Result: 1200 - 60 - 60 = 1080 seconds (18 minutes)
+    const TOKEN_EXPIRATION_THRESHOLD_SECONDS = 1080; // 18 minutes
+
+    // HTTP client timeout (in seconds)
+    // Default timeout for all HTTP requests (read/write operations)
+    const DEFAULT_HTTP_TIMEOUT_SECONDS = 60; // 1 minute
+
+    // Retry configuration
+    // Number of retry attempts for failed requests (1 = 1 retry = 2 total attempts)
+    // When authentication failure (401/403) is detected, tokens are cleared and request is retried
+    const DEFAULT_RETRY_COUNT = 1;
 }
 

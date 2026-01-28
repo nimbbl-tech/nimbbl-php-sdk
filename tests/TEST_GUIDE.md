@@ -1,8 +1,16 @@
-# Nimbbl PHP SDK - API Testing Guide
+# Nimbbl PHP SDK - Testing Guide (v4.0.0)
 
-This guide explains how to test all APIs in the Nimbbl PHP SDK.
+This guide explains how to test all APIs in the Nimbbl PHP SDK v4.0.0.
 
-## 🚀 Quick Start
+## v4.0.0 Changes
+
+The SDK has been restructured to match the .NET SDK architecture:
+- **Client Class**: `Nimbbl\Api\Api` is replaced by `Nimbbl\Api\RestClient\NimbblClient`.
+- **Namespaces**: Services are now in `Nimbbl\Api\Services`.
+- **Tests**: All tests have been updated to use the new structure.
+
+
+##  Quick Start
 
 ### 1. Setup Configuration
 
@@ -32,15 +40,15 @@ php tests/test-all-apis.php
 ```
 
 This will test:
-- ✅ Orders API (Create, Get by Order ID, Get by Invoice ID)
-- ✅ Addresses API (List, Create, Get, Update, Delete, Check Eligibility, Link Order)
-- ✅ Payments API (Initiate)
-- ✅ Payment Links API (Create, Enquiry)
-- ✅ Checkout Utilities API (Payment Modes, Banks, Wallets, EMIs, Offers, Card BIN, UPI VPA)
-- ✅ Transaction Status API (Enquiry by Order ID, Invoice ID)
-- ✅ Transactions API (Transaction Enquiry)
-- ✅ Refunds API (Initiate Refund - Full and Partial)
-- ❌ Users API (Removed - not an official public API)
+- [OK] Orders API (Create, Get by Order ID, Get by Invoice ID)
+- [OK] Addresses API (List, Create, Get, Update, Delete, Check Eligibility, Link Order)
+- [OK] Payments API (Initiate)
+- [OK] Payment Links API (Create, Enquiry)
+- [OK] Checkout Utilities API (Payment Modes, Banks, Wallets, EMIs, Offers, Card BIN, UPI VPA)
+- [OK] Transaction Status API (Enquiry by Order ID, Invoice ID)
+- [OK] Transactions API (Transaction Enquiry)
+- [OK] Refunds API (Initiate Refund - Full and Partial)
+- [ERROR] Users API (Removed - not an official public API)
 
 ### 3. Run Individual Test Files
 
@@ -64,74 +72,74 @@ php tests/RefundTest.php
 php tests/run-all-tests.php
 ```
 
-## 📊 Test Coverage
+##  Test Coverage
 
 ### Orders API
-- ✅ Create Order
-- ✅ Get Order by Order ID
-- ✅ Get Order by Invoice ID
+- [OK] Create Order
+- [OK] Get Order by Order ID
+- [OK] Get Order by Invoice ID
 
 ### Addresses API
-- ✅ List Addresses
-- ✅ Create Address
-- ✅ Get Address
-- ✅ Update Address
-- ✅ Delete Address
-- ✅ Import Addresses
-- ✅ Check Address Eligibility
-- ✅ Link Address with Order
+- [OK] List Addresses
+- [OK] Create Address
+- [OK] Get Address
+- [OK] Update Address
+- [OK] Delete Address
+- [OK] Import Addresses
+- [OK] Check Address Eligibility
+- [OK] Link Address with Order
 
 ### Payments API
-- ✅ Initiate Payment
-- ✅ Complete Payment (for Pay Later with OTP)
-- ✅ Resend OTP
+- [OK] Initiate Payment
+- [OK] Complete Payment (for Pay Later with OTP)
+- [OK] Resend OTP
 
 ### Payment Links API
-- ✅ Create Payment Link
-- ✅ Payment Link Enquiry
-- ✅ Update Payment Link
-- ✅ Payment Link Actions (cancel, pause, resume)
+- [OK] Create Payment Link
+- [OK] Payment Link Enquiry
+- [OK] Update Payment Link
+- [OK] Payment Link Actions (cancel, pause, resume)
 
 ### Checkout Utilities API
-- ✅ List Payment Modes
-- ✅ List Banks
-- ✅ List Wallets
-- ✅ List EMIs
-- ✅ Get Offers
-- ✅ Get Card BIN Data
-- ✅ Validate UPI VPA
+- [OK] List Payment Modes
+- [OK] List Banks
+- [OK] List Wallets
+- [OK] List EMIs
+- [OK] Get Offers
+- [OK] Get Card BIN Data
+- [OK] Validate UPI VPA
 
 ### Transaction Status API
-- ✅ Transaction Enquiry by Order ID
-- ✅ Transaction Enquiry by Invoice ID
-- ✅ Transaction Enquiry by Transaction ID
+- [OK] Transaction Enquiry by Order ID
+- [OK] Transaction Enquiry by Invoice ID
+- [OK] Transaction Enquiry by Transaction ID
 
 ### Transactions API
-- ✅ Transaction Enquiry (by Order ID)
-- ❌ Get Transaction by ID (Not official API - use Transaction Status API instead)
-- ❌ List Transactions (Not official API)
-- ❌ Get Transactions by Order ID (Not official API - use Transaction Status API instead)
-- ❌ Cancel Transaction (Not official public API - internal API only)
+- [OK] Transaction Enquiry (by Order ID)
+- [ERROR] Get Transaction by ID (Not official API - use Transaction Status API instead)
+- [ERROR] List Transactions (Not official API)
+- [ERROR] Get Transactions by Order ID (Not official API - use Transaction Status API instead)
+- [ERROR] Cancel Transaction (Not official public API - internal API only)
 
 ### Refunds API
-- ✅ Initiate Refund (Full and Partial)
-- ❌ Get Refund by ID (Not official API - use Transaction Status API instead)
-- ❌ List Refunds (Not official API)
-- ❌ Get Refunds by Order ID (Not official API - use Transaction Status API instead)
-- ❌ Get Refunds by Transaction ID (Not official API - use Transaction Status API instead)
+- [OK] Initiate Refund (Full and Partial)
+- [ERROR] Get Refund by ID (Not official API - use Transaction Status API instead)
+- [ERROR] List Refunds (Not official API)
+- [ERROR] Get Refunds by Order ID (Not official API - use Transaction Status API instead)
+- [ERROR] Get Refunds by Transaction ID (Not official API - use Transaction Status API instead)
 
 ### Users API
-- ❌ **REMOVED** - Users API has been removed from the SDK as it's not an official public API
+- [ERROR] **REMOVED** - Users API has been removed from the SDK as it's not an official public API
 
-## 🔍 Test Output
+##  Test Output
 
 The comprehensive test suite (`test-all-apis.php`) provides:
-- ✅ Pass/Fail status for each test
-- ⏱️ Execution time for each test
-- 📊 Summary with total tests, passed, failed
-- ❌ Detailed error messages for failures
+- [OK] Pass/Fail status for each test
+- [INFO] Execution time for each test
+-  Summary with total tests, passed, failed
+- [ERROR] Detailed error messages for failures
 
-## ⚠️ Important Notes
+## [WARNING] Important Notes
 
 1. **API Credentials Required:**
    - Tests require valid API credentials in `example/config.php`
@@ -149,7 +157,7 @@ The comprehensive test suite (`test-all-apis.php`) provides:
    - Tests catch and report exceptions
    - Failed tests show detailed error information
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### "Config file not found"
 ```bash
@@ -174,7 +182,7 @@ composer install
 - Check network connectivity
 - Review API error messages in test output
 
-## 📝 Test Structure
+##  Test Structure
 
 ```
 tests/
@@ -192,7 +200,7 @@ tests/
 └── README.md                  # Test documentation
 ```
 
-## 🎯 Best Practices
+##  Best Practices
 
 1. **Run tests in UAT/Sandbox environment first**
 2. **Review test output carefully**

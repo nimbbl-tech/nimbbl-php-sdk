@@ -15,6 +15,17 @@ Webhooks allow you to receive real-time notifications about payment events from 
 - Signature calculation: `HMAC-SHA256(payload, access_secret)`.
 - Keep the secret out of logs/config, prefer env vars; always reject invalid signatures.
 
+## Signature Header (Optional but Recommended)
+
+**The `X-Nimbbl-Signature` header is optional per Nimbbl documentation, but recommended for security.**
+
+- If the header is present, the webhook handler will verify the signature before processing.
+- If the header is missing, the webhook will be processed without signature verification (not recommended for production).
+- The header should contain the HMAC-SHA256 signature of the webhook payload.
+- Ensure your proxy/CDN (e.g., Cloudflare) preserves the `X-Nimbbl-Signature` header if you want to use signature verification.
+
+**Note:** The official Nimbbl documentation (https://nimbbl.biz/docs/standard-checkout/completing-integration/keeping-system-updated/) does not explicitly require the `X-Nimbbl-Signature` header. The signature can also be found in the payload as `nimbbl_signature`. This SDK implementation supports both approaches - if the header is present, it will be verified; if missing, the webhook will be processed without verification.
+
 ## Setup
 
 1. **Deploy webhook handler**: Create a publicly accessible HTTPS endpoint
@@ -23,160 +34,146 @@ Webhooks allow you to receive real-time notifications about payment events from 
 
 ## Methods
 
-### 1. verifyWebhook
+### 1. PayloadHelperUtils::parse()
 
-Verify webhook signature to ensure it's from Nimbbl.
+Parse and unwrap webhook payload, handling encryption, unwrapping, and `globalHandleCheckoutResponse` events automatically.
 
 **Method Signature:**
 ```php
-public function verifyWebhook($payload, $signature, $secret)
+public static function parse(string $payload, string $secret): array
 ```
 
 **Parameters:**
 - `$payload` (string): Raw webhook payload (JSON string)
-- `$signature` (string): Signature from `X-Nimbbl-Signature` header
 - `$secret` (string): Access secret (from Nimbbl dashboard)
 
 **Returns:**
-- `bool`: `true` if signature is valid, `false` otherwise
+- `array`: Parsed webhook event array
+
+**Features:**
+- Automatically detects and decrypts `encrypted_response` at various levels
+- Handles `callback` object unwrapping
+- Unwraps `globalHandleCheckoutResponse` events
+- Throws exception on parsing errors
 
 **Example:**
 ```php
-use Nimbbl\Api\Webhook;
-
-$webhook = new Webhook();
+use Nimbbl\Api\Common\PayloadHelperUtils;
 
 $payload = file_get_contents('php://input');
-$signature = $_SERVER['HTTP_X_NIMBBL_SIGNATURE'] ?? '';
-$secret = 'your_access_secret';
+$accessSecret = 'your_access_secret';
 
-$isValid = $webhook->verifyWebhook($payload, $signature, $secret);
+try {
+    $eventData = PayloadHelperUtils::parse($payload, $accessSecret);
+    // Process event
+} catch (\Exception $e) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Parse error: ' . $e->getMessage()]);
+    exit;
+}
+```
 
-if (!$isValid) {
+---
+
+### 2. PayloadHelperUtils::parseResponse()
+
+Parse payment callback response, which can be either base64-encoded or a regular JSON string. Automatically detects the format and handles both cases.
+
+**Method Signature:**
+```php
+public static function parseResponse(string $response, string $secret): array
+```
+
+**Parameters:**
+- `$response` (string): Base64-encoded JSON response or regular JSON string
+- `$secret` (string): Access secret (from Nimbbl dashboard)
+
+**Returns:**
+- `array`: Parsed response array
+
+**Features:**
+- Automatically detects base64 vs JSON format
+- Handles encryption, unwrapping, and `globalHandleCheckoutResponse` events
+- Used for payment callbacks from popup/redirect checkout
+
+**Example:**
+```php
+use Nimbbl\Api\Common\PayloadHelperUtils;
+
+// Handle GET callback with base64-encoded response
+$responseParam = $_GET['response'] ?? '';
+$parsed = PayloadHelperUtils::parseResponse($responseParam, $accessSecret);
+
+// Handle POST callback with JSON
+$raw = file_get_contents('php://input');
+$parsed = PayloadHelperUtils::parseResponse($raw, $accessSecret);
+```
+
+---
+
+### 3. SignatureVerifier::verifySignature()
+
+Verify webhook signature. Routes to the appropriate verification method based on webhook event type.
+
+**Method Signature:**
+```php
+public function verifySignature(array $attributes, string $secretKey = null): array
+```
+
+**Parameters:**
+- `$attributes` (array): Parsed webhook event data
+- `$secretKey` (string|null): Access secret (optional, uses configured secret if not provided)
+
+**Returns:**
+- `array`: Result array with `success` (bool) and `message` (string)
+
+**Example:**
+```php
+use Nimbbl\Api\Common\SignatureVerifier;
+
+$verifier = new SignatureVerifier();
+$result = $verifier->verifySignature($eventData, $accessSecret);
+
+if (!$result['success']) {
     http_response_code(401);
     echo json_encode(['error' => 'Invalid signature']);
     exit;
 }
-
-// Process webhook
 ```
 
 ---
 
-### 2. parseWebhookEvent
+### 4. SignatureVerifier::verifyCallbackSignature()
 
-Parse webhook payload into an array.
+Verify signature for payment callbacks from popup/redirect checkout.
 
 **Method Signature:**
 ```php
-public function parseWebhookEvent($payload)
+public function verifyCallbackSignature(array $payload, string $secretKey = null): array
 ```
 
 **Parameters:**
-- `$payload` (string): Raw webhook payload (JSON string)
+- `$payload` (array): Parsed callback payload
+- `$secretKey` (string|null): Access secret (optional)
 
 **Returns:**
-- `array|null`: Parsed webhook event or `null` if parsing fails
+- `array`: Result array with `success` (bool) and `message` (string)
 
 **Example:**
 ```php
-$payload = file_get_contents('php://input');
-$eventData = $webhook->parseWebhookEvent($payload);
+use Nimbbl\Api\Common\PayloadHelperUtils;
+use Nimbbl\Api\Common\SignatureVerifier;
 
-if ($eventData === null) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Invalid JSON']);
-    exit;
-}
+$parsed = PayloadHelperUtils::parseResponse($responseParam, $accessSecret);
+$verifier = new SignatureVerifier();
+$result = $verifier->verifyCallbackSignature($parsed, $accessSecret);
 
-$eventType = $eventData['event_type'] ?? null;
-$orderId = $eventData['nimbbl_order_id'] ?? null;
-$transactionId = $eventData['nimbbl_transaction_id'] ?? null;
-```
-
----
-
-### 3. verifyAndParse
-
-Verify signature and parse webhook in one call.
-
-**Method Signature:**
-```php
-public function verifyAndParse($payload, $signature, $secret)
-```
-
-**Parameters:**
-- `$payload` (string): Raw webhook payload
-- `$signature` (string): Signature from header
-- `$secret` (string): Access secret
-
-**Returns:**
-- `array|null`: Parsed event or `null` if verification fails
-
-**Example:**
-```php
-$payload = file_get_contents('php://input');
-$signature = $_SERVER['HTTP_X_NIMBBL_SIGNATURE'] ?? '';
-$secret = 'your_access_secret';
-
-$eventData = $webhook->verifyAndParse($payload, $signature, $secret);
-
-if ($eventData === null) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Verification failed']);
-    exit;
-}
-
-// Process event
-$eventType = $eventData['event_type'];
-```
-
----
-
-### 4. getSignatureFromHeaders
-
-Extract signature from HTTP headers.
-
-**Method Signature:**
-```php
-public function getSignatureFromHeaders($headers)
-```
-
-**Parameters:**
-- `$headers` (array): HTTP headers array (e.g., `$_SERVER`)
-
-**Returns:**
-- `string|null`: Signature or `null` if not found
-
-**Example:**
-```php
-$signature = $webhook->getSignatureFromHeaders($_SERVER);
-
-if ($signature === null) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Signature header missing']);
-    exit;
+if ($result['success']) {
+    // Process payment
 }
 ```
 
----
-
-### 5. getPayloadFromInput
-
-Get webhook payload from input stream.
-
-**Method Signature:**
-```php
-public function getPayloadFromInput()
-```
-
-**Returns:**
-- `string`: Raw payload from `php://input`
-
-**Example:**
-```php
-$payload = $webhook->getPayloadFromInput();
-```
+**Note:** Signature verification reads `signature`, `signature_version`, and `transaction_id` **only from the transaction object** (no fallbacks). This ensures data integrity and matches the authoritative source.
 
 ---
 
@@ -186,29 +183,39 @@ $payload = $webhook->getPayloadFromInput();
 <?php
 require_once 'vendor/autoload.php';
 
-use Nimbbl\Api\Webhook;
+use Nimbbl\Api\Common\PayloadHelperUtils;
+use Nimbbl\Api\Common\SignatureVerifier;
+use Nimbbl\Api\Common\JsonKeys;
 
-// Initialize webhook handler
-$webhook = new Webhook();
+// Get webhook payload
+$payload = file_get_contents('php://input');
+$accessSecret = 'your_access_secret'; // From config
 
-// Get payload and signature
-$payload = $webhook->getPayloadFromInput();
-$signature = $webhook->getSignatureFromHeaders($_SERVER);
-$secret = 'your_access_secret'; // From config
+if (empty($payload)) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Webhook payload is empty']);
+    exit;
+}
 
-// Verify and parse
-$eventData = $webhook->verifyAndParse($payload, $signature, $secret);
+// Parse and unwrap the payload using PayloadHelperUtils
+// This handles encryption, unwrapping, and globalHandleCheckoutResponse automatically
+$eventData = PayloadHelperUtils::parse($payload, $accessSecret);
 
-if ($eventData === null) {
+// Verify webhook signature
+$verifier = new SignatureVerifier();
+$result = $verifier->verifySignature($eventData, $accessSecret);
+
+if (!$result['success']) {
     http_response_code(401);
-    echo json_encode(['error' => 'Invalid signature']);
+    echo json_encode(['error' => 'Invalid signature: ' . ($result['message'] ?? 'Unknown error')]);
     exit;
 }
 
 // Extract event details
-$eventType = $eventData['event_type'] ?? null;
-$orderId = $eventData['nimbbl_order_id'] ?? null;
-$transactionId = $eventData['nimbbl_transaction_id'] ?? null;
+$eventType = $eventData[JsonKeys::EVENT_TYPE] ?? null;
+$orderId = $eventData[JsonKeys::NIMBBL_ORDER_ID] ?? $eventData[JsonKeys::ORDER_ID] ?? null;
+// Extract transaction_id only from transaction object
+$transactionId = $eventData[JsonKeys::TRANSACTION][JsonKeys::TRANSACTION_ID] ?? null;
 
 // Process based on event type
 switch ($eventType) {
@@ -312,13 +319,15 @@ echo "Transaction ID: " . $webhookEvent->transaction_id . "\n";
 ## Best Practices
 
 1. **Always verify signature**: Never process webhooks without signature verification
-2. **Return 200 quickly**: Return 200 OK within 15 seconds or webhook will be retried
-3. **Handle idempotency**: Same webhook may be received multiple times - handle duplicates
-4. **Process asynchronously**: Do heavy processing asynchronously, return 200 quickly
-5. **Log everything**: Log all webhook events for debugging
-6. **Handle errors gracefully**: Don't fail on unknown events, log and continue
-7. **Use HTTPS**: Webhook URL must be HTTPS
-8. **Validate event data**: Always validate required fields before processing
+2. **Require signature header**: The `X-Nimbbl-Signature` header is mandatory - reject requests without it
+3. **Return 200 quickly**: Return 200 OK within 15 seconds or webhook will be retried
+4. **Handle idempotency**: Same webhook may be received multiple times - handle duplicates
+5. **Process asynchronously**: Do heavy processing asynchronously, return 200 quickly
+6. **Log everything**: Log all webhook events for debugging
+7. **Handle errors gracefully**: Don't fail on unknown events, log and continue
+8. **Use HTTPS**: Webhook URL must be HTTPS
+9. **Validate event data**: Always validate required fields before processing
+10. **Preserve headers**: Ensure your proxy/CDN preserves the `X-Nimbbl-Signature` header
 
 ---
 

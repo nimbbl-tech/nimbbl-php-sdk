@@ -35,7 +35,7 @@ foreach ($tests as $testName => $testFile) {
     try {
         include __DIR__ . '/' . $testFile;
     } catch (Exception $e) {
-        echo "✗ Fatal Error: " . $e->getMessage() . "\n";
+        echo "[ERROR] Fatal Error: " . $e->getMessage() . "\n";
         $exitCode = 1;
     }
     
@@ -52,7 +52,7 @@ foreach ($tests as $testName => $testFile) {
         'success' => $exitCode === 0
     ];
     
-    echo "\n⏱️  Duration: {$duration}s\n";
+    echo "\n[INFO]  Duration: {$duration}s\n";
 }
 
 // Summary
@@ -66,7 +66,7 @@ $failedTests = $totalTests - $passedTests;
 $totalDuration = array_sum(array_column($results, 'duration'));
 
 foreach ($results as $testName => $result) {
-    $status = $result['success'] ? '✓ PASS' : '✗ FAIL';
+    $status = $result['success'] ? '[SUCCESS] PASS' : '[ERROR] FAIL';
     $duration = $result['duration'];
     echo sprintf("%-30s %-10s %6ss\n", $testName, $status, $duration);
 }
@@ -76,10 +76,10 @@ echo sprintf("Total: %d tests | Passed: %d | Failed: %d | Duration: %.2fs\n",
     $totalTests, $passedTests, $failedTests, $totalDuration);
 
 if ($failedTests > 0) {
-    echo "\n⚠️  Some tests failed. Please check the output above for details.\n";
+    echo "\n[WARNING]  Some tests failed. Please check the output above for details.\n";
     exit(1);
 } else {
-    echo "\n✅ All tests passed!\n";
+    echo "\n[SUCCESS] All tests passed!\n";
     exit(0);
 }
 

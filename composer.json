@@ -4,8 +4,8 @@
     "type": "library",
     "license": "MIT",
     "authors": [{
-        "name": "Sandeep Yadav",
-        "email": "sandeep@nimbbl.biz"
+        "name": "Vijay Chouhan",
+        "email": "vijay@nimbbl.biz"
     }],
     "minimum-stability": "stable",
     "require": {
@@ -17,21 +17,7 @@
         "psr-4": {
             "Nimbbl\\Api\\": "src/",
             "Nimbbl\\Tests\\": "tests/"
-        },
-        "classmap": [
-            "src/Order/",
-            "src/Payment/",
-            "src/Address/",
-            "src/PaymentLink/",
-            "src/Refund/",
-            "src/Transaction/",
-            "src/CheckoutUtilities/",
-            "src/Auth/",
-            "src/Common/",
-            "src/API/",
-            "src/Log/",
-            "src/Webhook/"
-        ]
+        }
     },
     "require-dev": {
         "phpunit/phpunit": "^9.5"

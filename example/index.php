@@ -16,37 +16,38 @@ echo "Each example is self-contained and demonstrates best practices.\n\n";
 echo "Available Examples:\n";
 echo str_repeat('=', 50) . "\n\n";
 
-echo "📦 Core Operations:\n";
-echo "  • create-order.php          - Create orders with detailed examples\n";
-echo "  • get-order.php             - Retrieve orders by ID or invoice ID\n";
-echo "  • generate-token.php        - Generate authentication tokens\n\n";
+echo " Core Operations:\n";
+echo "  • generate-token.php        - Generate authentication tokens\n";
+echo "  • order-examples.php        - Create orders, get by ID, get by invoice ID\n\n";
 
-echo "💳 Payment Operations:\n";
+echo "Payment Operations:\n";
 echo "  • payments-examples.php     - Initiate, complete payments, resend OTP\n";
 echo "  • payment-links-examples.php - Create and manage payment links\n";
 echo "  • refund-examples.php       - Process refunds (full and partial)\n";
 echo "  • transaction-status.php   - Enquire transaction status\n\n";
 
-echo "📍 Address Management:\n";
+echo "Address Management:\n";
 echo "  • addresses-examples.php    - List, create, update, delete addresses\n\n";
 
-echo "🛠️  Utilities:\n";
+echo "Utilities:\n";
 echo "  • checkout-utilities-examples.php - Payment modes, banks, wallets, EMIs, offers\n";
-echo "  • encryption-examples.php   - Data encryption examples\n";
-echo "  • exception-handling-examples.php - Error handling patterns\n";
-echo "  • logging-example.php      - Logging configuration and usage\n\n";
+echo "  • encryption-examples.php   - Data encryption/decryption examples\n";
+echo "  • exception-handling-examples.php - Error handling patterns\n\n";
 
-echo "🔔 Webhooks:\n";
+echo "Webhooks:\n";
 echo "  • webhook-handler.php      - Webhook signature verification and processing\n\n";
 
-echo "🖥️  Tools:\n";
-echo "  • cli.php                  - Interactive CLI for testing all APIs\n\n";
+echo "Tools:\n";
+echo "  • cli.php                  - Interactive CLI menu for testing all APIs (32 options)\n\n";
 
 echo str_repeat('=', 50) . "\n\n";
 echo "To run a specific example:\n";
-echo "  php example/create-order.php\n";
+echo "  php example/generate-token.php\n";
+echo "  php example/order-examples.php\n";
 echo "  php example/payments-examples.php\n";
 echo "  php example/webhook-handler.php\n\n";
+echo "Or use the interactive CLI menu:\n";
+echo "  php example/cli.php\n\n";
 
 echo "For more information, see:\n";
 echo "  • README.md - Detailed documentation\n";

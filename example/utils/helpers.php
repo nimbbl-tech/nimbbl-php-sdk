@@ -1,10 +1,9 @@
-use Nimbbl\Api\Api;
-
 <?php
+use Nimbbl\Api\RestClient\NimbblClient;
 // Suppress deprecation warnings from vendor libraries (PHP 8.2+)
 // This should be called before loading vendor/autoload.php
 if (!defined('NIMBBL_ERROR_REPORTING_SET')) {
-    error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
+    error_reporting(E_ALL & ~E_DEPRECATED);
     define('NIMBBL_ERROR_REPORTING_SET', true);
 }
 /**
@@ -20,23 +19,28 @@ if (!defined('NIMBBL_ERROR_REPORTING_SET')) {
 function loadConfig()
 {
     $configFile = __DIR__ . '/../config.php';
-    
+
     if (!file_exists($configFile)) {
         throw new Exception(
             "Configuration file not found. Please copy config.php.example to config.php and update with your credentials."
         );
     }
-    
+
     $config = require $configFile;
-    
+
     // Validate required configuration
-    $required = ['access_key', 'access_secret', 'api_endpoint'];
+    $required = ['access_key', 'access_secret', 'api_url', 'api_version'];
     foreach ($required as $key) {
         if (empty($config[$key]) || $config[$key] === "your_{$key}_here") {
             throw new Exception("Please configure '{$key}' in config.php");
         }
     }
-    
+
+    // Derive combined endpoint for legacy callers
+    $base = rtrim($config['api_url'], '/') . '/';
+    $version = ltrim($config['api_version'], '/');
+    $config['api_endpoint'] = $version === '' ? rtrim($base, '/') : $base . $version;
+
     return $config;
 }
 
@@ -48,11 +52,11 @@ function loadConfig()
  * Initialize Nimbbl API instance with configuration
  *
  * @param array $config Configuration array from loadConfig()
- * @return Api Initialized API instance
+ * @return NimbblClient Initialized API instance
  */
 function initApi($config)
 {
-    return new Api(
+    return new NimbblClient(
         $config['access_key'],
         $config['access_secret'],
         $config['api_endpoint'],
@@ -60,4 +64,16 @@ function initApi($config)
         null,
         $config['log_file'] ?? null
     );
+}
+
+/**
+ * Format amount for display
+ * 
+ * @param float $amount Amount in lowest denomination
+ * @param string $currency Currency code
+ * @return string Formatted amount
+ */
+function formatAmount($amount, $currency = 'INR')
+{
+    return $currency . ' ' . number_format($amount / 100, 2);
 }

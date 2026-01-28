@@ -3,6 +3,8 @@
 namespace Nimbbl\Api;
 
 use Exception;
+use Nimbbl\Api\Common\HttpStatusCodes;
+use Nimbbl\Api\Log\Logger;
 use Nimbbl\Api\Exception\NimbblException;
 
 /**
@@ -80,7 +82,8 @@ class Encryption
             throw new NimbblException(
                 'Access secret is required for encryption',
                 'INVALID_ACCESS_SECRET',
-                400
+                null,
+                HttpStatusCodes::BAD_REQUEST
             );
         }
 
@@ -102,13 +105,13 @@ class Encryption
     {
         // Remove "access_secret_" prefix
         $keyString = str_replace('access_secret_', '', $accessSecret);
-        
+
         // Generate SHA256 hash (with iterations)
         $byteKey = $keyString;
         for ($i = 0; $i < $this->keyIterations; $i++) {
             $byteKey = hash('sha256', $byteKey, true); // true = raw binary output
         }
-        
+
         $this->encryptionKey = $byteKey;
     }
 
@@ -126,12 +129,19 @@ class Encryption
      */
     public function encrypt($data)
     {
+        $logger = Logger::getInstance();
         try {
+            $logger->debug("Encryption::encrypt() called - Input type: " . gettype($data));
+
             // Convert data to string/bytes
             if (is_array($data)) {
                 $data = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                $logger->debug("Encryption::encrypt() - Converted array to JSON, length: " . strlen($data));
             } elseif (!is_string($data)) {
                 $data = (string) $data;
+                $logger->debug("Encryption::encrypt() - Converted to string, length: " . strlen($data));
+            } else {
+                $logger->debug("Encryption::encrypt() - Input is string, length: " . strlen($data));
             }
 
             $plaintext = $data;
@@ -141,21 +151,27 @@ class Encryption
                 throw new NimbblException(
                     'AES-256-GCM cipher is not available. Please ensure OpenSSL extension is installed and supports GCM mode.',
                     'ENCRYPTION_NOT_SUPPORTED',
-                    500
+                    null,
+                    HttpStatusCodes::INTERNAL_SERVER_ERROR
                 );
             }
 
             // Generate random nonce (IV)
+            $logger->debug("Encryption::encrypt() - Generating random nonce (length: " . self::GCM_NONCE_LENGTH . " bytes)");
             $nonce = openssl_random_pseudo_bytes(self::GCM_NONCE_LENGTH);
             if ($nonce === false) {
+                $logger->error("Encryption::encrypt() - Failed to generate random nonce");
                 throw new NimbblException(
                     'Failed to generate random nonce',
                     'NONCE_GENERATION_FAILED',
-                    500
+                    null,
+                    HttpStatusCodes::INTERNAL_SERVER_ERROR
                 );
             }
+            $logger->debug("Encryption::encrypt() - Nonce generated successfully");
 
             // Encrypt with AES-256-GCM
+            $logger->debug("Encryption::encrypt() - Encrypting with AES-256-GCM, plaintext length: " . strlen($plaintext));
             $tag = '';
             $ciphertext = openssl_encrypt(
                 $plaintext,
@@ -169,27 +185,37 @@ class Encryption
             );
 
             if ($ciphertext === false) {
+                $error = openssl_error_string();
+                $logger->error("Encryption::encrypt() - Encryption failed: " . $error);
                 throw new NimbblException(
-                    'Encryption failed: ' . openssl_error_string(),
+                    'Encryption failed: ' . $error,
                     'ENCRYPTION_FAILED',
-                    500
+                    null,
+                    HttpStatusCodes::INTERNAL_SERVER_ERROR
                 );
             }
+            $logger->debug("Encryption::encrypt() - Encryption successful, ciphertext length: " . strlen($ciphertext));
 
             // Verify tag length
             if (strlen($tag) !== self::GCM_TAG_LENGTH) {
+                $logger->error("Encryption::encrypt() - Tag length mismatch. Expected: " . self::GCM_TAG_LENGTH . ", Got: " . strlen($tag));
                 throw new NimbblException(
                     'Authentication tag length mismatch. Expected ' . self::GCM_TAG_LENGTH . ' bytes, got ' . strlen($tag),
                     'TAG_LENGTH_MISMATCH',
-                    500
+                    null,
+                    HttpStatusCodes::INTERNAL_SERVER_ERROR
                 );
             }
+            $logger->debug("Encryption::encrypt() - Tag verified, length: " . strlen($tag));
 
             // Concatenate: nonce + ciphertext + tag
             $encryptedData = $nonce . $ciphertext . $tag;
+            $logger->debug("Encryption::encrypt() - Concatenated encrypted data, total length: " . strlen($encryptedData) . " bytes");
 
             // Convert to hex string
-            return bin2hex($encryptedData);
+            $hexResult = bin2hex($encryptedData);
+            $logger->debug("Encryption::encrypt() - Converted to hex string, length: " . strlen($hexResult));
+            return $hexResult;
         } catch (NimbblException $e) {
             throw $e;
         } catch (Exception $e) {
@@ -197,7 +223,7 @@ class Encryption
                 'Encryption error: ' . $e->getMessage(),
                 'ENCRYPTION_ERROR',
                 null,
-                500,
+                HttpStatusCodes::INTERNAL_SERVER_ERROR,
                 ['original_exception' => $e->getMessage()],
                 $e
             );
@@ -214,46 +240,60 @@ class Encryption
      */
     public function decrypt($encryptedData, $returnAsArray = false)
     {
+        $logger = Logger::getInstance();
         try {
+            $logger->debug("Encryption::decrypt() called - Input length: " . strlen($encryptedData) . ", returnAsArray: " . ($returnAsArray ? 'true' : 'false'));
+
             // Convert hex string to bytes
+            $logger->debug("Encryption::decrypt() - Converting hex string to bytes");
             $encryptedBytes = hex2bin($encryptedData);
             if ($encryptedBytes === false) {
+                $logger->error("Encryption::decrypt() - Invalid hex string provided");
                 throw new NimbblException(
                     'Invalid hex string provided for decryption',
                     'INVALID_HEX_STRING',
-                    400
+                    null,
+                    HttpStatusCodes::BAD_REQUEST
                 );
             }
+            $logger->debug("Encryption::decrypt() - Hex conversion successful, bytes length: " . strlen($encryptedBytes));
 
             // Verify minimum length (nonce + tag = 32 bytes minimum)
             $minLength = self::GCM_NONCE_LENGTH + self::GCM_TAG_LENGTH;
             if (strlen($encryptedBytes) < $minLength) {
+                $logger->error("Encryption::decrypt() - Encrypted data too short. Expected: {$minLength}, Got: " . strlen($encryptedBytes));
                 throw new NimbblException(
                     'Encrypted data too short. Expected at least ' . $minLength . ' bytes, got ' . strlen($encryptedBytes),
                     'INVALID_ENCRYPTED_DATA',
-                    400
+                    null,
+                    HttpStatusCodes::BAD_REQUEST
                 );
             }
 
             // Extract nonce (first 16 bytes)
             $nonce = substr($encryptedBytes, 0, self::GCM_NONCE_LENGTH);
+            $logger->debug("Encryption::decrypt() - Extracted nonce, length: " . strlen($nonce));
 
             // Extract tag (last 16 bytes)
             $tag = substr($encryptedBytes, -self::GCM_TAG_LENGTH);
+            $logger->debug("Encryption::decrypt() - Extracted tag, length: " . strlen($tag));
 
             // Extract ciphertext (middle bytes)
             $ciphertext = substr($encryptedBytes, self::GCM_NONCE_LENGTH, -self::GCM_TAG_LENGTH);
+            $logger->debug("Encryption::decrypt() - Extracted ciphertext, length: " . strlen($ciphertext));
 
             // Check if OpenSSL supports AES-GCM
             if (!in_array('aes-256-gcm', openssl_get_cipher_methods())) {
                 throw new NimbblException(
                     'AES-256-GCM cipher is not available. Please ensure OpenSSL extension is installed and supports GCM mode.',
                     'DECRYPTION_NOT_SUPPORTED',
-                    500
+                    null,
+                    HttpStatusCodes::INTERNAL_SERVER_ERROR
                 );
             }
 
             // Decrypt with AES-256-GCM
+            $logger->debug("Encryption::decrypt() - Decrypting with AES-256-GCM");
             $plaintext = openssl_decrypt(
                 $ciphertext,
                 'aes-256-gcm',
@@ -265,21 +305,29 @@ class Encryption
 
             if ($plaintext === false) {
                 $error = openssl_error_string();
+                $logger->error("Encryption::decrypt() - Decryption failed: " . ($error ?: 'Unknown error'));
                 throw new NimbblException(
                     'Decryption failed. The encrypted data may be corrupted or the key is incorrect. ' . ($error ?: ''),
                     'DECRYPTION_FAILED',
-                    400
+                    null,
+                    HttpStatusCodes::BAD_REQUEST
                 );
             }
+            $logger->debug("Encryption::decrypt() - Decryption successful, plaintext length: " . strlen($plaintext));
 
             // Return as array if requested and data is valid JSON
             if ($returnAsArray) {
+                $logger->debug("Encryption::decrypt() - Attempting to decode JSON");
                 $decoded = json_decode($plaintext, true);
                 if (json_last_error() === JSON_ERROR_NONE) {
+                    $logger->debug("Encryption::decrypt() - JSON decode successful, returning array");
                     return $decoded;
+                } else {
+                    $logger->debug("Encryption::decrypt() - JSON decode failed: " . json_last_error_msg() . ", returning plaintext");
                 }
             }
 
+            $logger->debug("Encryption::decrypt() - Returning plaintext");
             return $plaintext;
         } catch (NimbblException $e) {
             throw $e;
@@ -288,7 +336,7 @@ class Encryption
                 'Decryption error: ' . $e->getMessage(),
                 'DECRYPTION_ERROR',
                 null,
-                500,
+                HttpStatusCodes::INTERNAL_SERVER_ERROR,
                 ['original_exception' => $e->getMessage()],
                 $e
             );
