@@ -13,6 +13,8 @@ class CheckoutConstants
     const PAYMENT_MODE_NET_BANKING = 'net_banking';
     const PAYMENT_MODE_WALLET = 'wallet';
     const PAYMENT_MODE_UPI = 'upi';
+    const PAYMENT_MODE_CREDIT_CARD = 'credit_card';
+    const PAYMENT_MODE_DEBIT_CARD = 'debit_card';
     const PAYMENT_MODE_EMI = 'emi';
     const PAYMENT_MODE_ALL = 'allpayment';
 

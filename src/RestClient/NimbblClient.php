@@ -4,7 +4,6 @@ namespace Nimbbl\Api\RestClient;
 
 use Nimbbl\Api\Common\ApiConstants;
 use Nimbbl\Api\Common\SdkConstants;
-use Nimbbl\Api\Common\ErrorMessages;
 use Nimbbl\Api\Log\Logger;
 use Nimbbl\Api\Services\Order;
 use Nimbbl\Api\Services\Transaction;
@@ -26,15 +25,21 @@ class NimbblClient
 
     protected static $secret;
 
-    protected static $token;
-
     protected static $merchantId;
 
     protected static $logFile;
 
     /**
+     * Whether to override log filename (use static name without date suffix).
+     * When true, log file names are used as-is.
+     * When false (default), log files will have _ddMMyyyy suffix.
+     *
+     * @var bool
+     */
+    protected static $overrideLogFilename = false;
+
+    /**
      * Enable encryption for outgoing request payloads.
-     * Mirrors .NET SDK `encryptPayload` flag (ENCRYPT_PAYLOAD).
      *
      * @var bool
      */
@@ -42,7 +47,7 @@ class NimbblClient
 
     /**
      * Prevent duplicate "ApiClient initialized" logs.
-     * In the .NET sample app, this is effectively logged once at application startup.
+     * Logged once at application startup.
      *
      * @var bool
      */
@@ -58,43 +63,48 @@ class NimbblClient
 
 
     /**
-     * @param string $key
-     * @param string $secret
+     * @param string $key Access key
+     * @param string $secret Access secret
      * @param string|null $url API base URL
-     * @param string|null $apiVersion API version
-     * @param string|null $token Optional Bearer token (if provided, will be used instead of Basic Auth)
      * @param string|null $logFile Optional log file path (if provided, will be used for logging)
      * @param bool $encryptPayload Optional: enable encryption for outgoing payloads (default false)
+     * @param bool $debugLogging Optional: enable DEBUG-level SDK logs (default false)
+     * @param bool $overrideLogFilename Optional: override log filename to use static name without date suffix (default false)
      */
-    public function __construct($key, $secret, $url = null, $apiVersion = null, $token = null, $logFile = null, $encryptPayload = false)
+    public function __construct(string $key, string $secret, ?string $url = null, ?string $logFile = null, bool $encryptPayload = false, bool $debugLogging = false, bool $overrideLogFilename = false)
     {
         self::$key = $key;
         self::$secret = $secret;
-        self::$token = $token;
         self::$encryptPayload = (bool) $encryptPayload;
+        self::$overrideLogFilename = (bool) $overrideLogFilename;
+
+        if ($debugLogging) {
+            Logger::enableDebugLogging();
+        } else {
+            Logger::disableDebugLogging();
+        }
+
+        // IMPORTANT: Initialize Logger early with the override flag set correctly
+        // This ensures all subsequent Logger::getInstance() calls use the same instance and file naming behavior
+        if ($logFile !== null) {
+            self::$logFile = $logFile;
+            Logger::getInstance($logFile, $overrideLogFilename);
+        }
 
         if ($url !== null) {
             // Support combined base URL with version (e.g., https://api.nimbbl.tech/api/v3)
-            $trimmedUrl = rtrim($url, '/');
-            if ($apiVersion === null && preg_match('#/v\d+$#', $trimmedUrl)) {
-                self::$baseUrl = $trimmedUrl;
+            $normalizedUrl = rtrim($url, '/');
+            if (preg_match('#/v\d+$#', $normalizedUrl)) {
+                self::$baseUrl = $normalizedUrl;
                 self::$apiVersion = '';
             } else {
-                self::$baseUrl = $trimmedUrl;
+                self::$baseUrl = $normalizedUrl;
             }
         }
 
-        if ($apiVersion !== null) {
-            self::$apiVersion = $apiVersion;
-        }
-        if ($logFile !== null) {
-            self::setLogFile($logFile);
-        }
-
-        // Match .NET SDK log sequence: emit an initialization DEBUG line
         try {
             if (!self::$initLogEmitted) {
-                $logger = Logger::getInstance(self::$logFile);
+                $logger = Logger::getInstance();
                 $logger->debug("ApiClient initialized - encryptPayload: " . (self::$encryptPayload ? "True" : "False"));
                 self::$initLogEmitted = true;
             }
@@ -108,26 +118,32 @@ class NimbblClient
      *
      * @return bool
      */
-    public static function isEncryptPayloadEnabled()
+    public static function isEncryptPayloadEnabled(): bool
     {
         return (bool) self::$encryptPayload;
     }
 
-    /*
-     *  Set Headers
+    /**
+     * Set custom header for requests
+     * 
+     * @param string $header Header name
+     * @param string $value Header value
+     * @return void
      */
-    public function setHeader($header, $value)
+    public function setHeader(string $header, string $value): void
     {
         Request::addHeader($header, $value);
     }
 
     /**
-     * @param string $name
-     * @return mixed
+     * Magic getter for dynamic service instantiation
+     * 
+     * @param string $name Service name (e.g., 'order', 'payment')
+     * @return mixed Service instance
+     * @throws \Exception If service not found
      */
-    public function __get($name)
+    public function __get(string $name): mixed
     {
-
         $className = 'Nimbbl\\Api\\Services\\' . ucwords($name);
         if (class_exists($className)) {
             return new $className();
@@ -136,32 +152,52 @@ class NimbblClient
         throw new \Exception("Service $name not found.");
     }
 
-    public static function getBaseUrl()
+    /**
+     * Get API base URL
+     * 
+     * @return string
+     */
+    public static function getBaseUrl(): string
     {
         return self::$baseUrl;
     }
 
-    public static function getAPIVersion()
+    /**
+     * Get API version
+     * 
+     * @return string
+     */
+    public static function getAPIVersion(): string
     {
         return self::$apiVersion;
     }
 
-    public static function getKey()
+    /**
+     * Get access key
+     * 
+     * @return string|null
+     */
+    public static function getKey(): ?string
     {
         return self::$key;
     }
 
-    public static function getSecret()
+    /**
+     * Get access secret
+     * 
+     * @return string|null
+     */
+    public static function getSecret(): ?string
     {
         return self::$secret;
     }
 
-    public static function getToken()
-    {
-        return self::$token;
-    }
-
-    public static function getTokenEndpoint()
+    /**
+     * Get token generation endpoint URL
+     * 
+     * @return string
+     */
+    public static function getTokenEndpoint(): string
     {
         $baseUrl = rtrim(self::getBaseUrl(), '/');
         // If apiVersion is intentionally blank (combined endpoint already includes /vX),
@@ -172,7 +208,13 @@ class NimbblClient
         return $baseUrl . '/' . ApiConstants::AUTH_GENERATE_TOKEN;
     }
 
-    public static function getFullUrl($relativeUrl)
+    /**
+     * Get fully qualified URL
+     * 
+     * @param string $relativeUrl Relative URL path
+     * @return string Full URL
+     */
+    public static function getFullUrl(string $relativeUrl): string
     {
         $baseUrl = rtrim(self::getBaseUrl(), '/');
         $relativeUrl = ltrim($relativeUrl, '/');
@@ -186,13 +228,24 @@ class NimbblClient
         return $baseUrl . '/' . $relativeUrl;
     }
 
-    public static function setMerchantId($merchantId)
+    /**
+     * Set merchant ID
+     * 
+     * @param string $merchantId Merchant ID
+     * @return bool
+     */
+    public static function setMerchantId(string $merchantId): bool
     {
         self::$merchantId = $merchantId;
         return true;
     }
 
-    public static function getMerchantId()
+    /**
+     * Get merchant ID
+     * 
+     * @return string|null
+     */
+    public static function getMerchantId(): ?string
     {
         return self::$merchantId;
     }
@@ -203,13 +256,10 @@ class NimbblClient
      * @param string $logFile Path to log file
      * @return void
      */
-    public static function setLogFile($logFile)
+    public static function setLogFile(string $logFile): void
     {
-        // Match .NET sample behavior: use dated log file naming.
-        $resolved = Logger::resolveLogFilePath($logFile);
-        self::$logFile = $resolved;
-        // Reinitialize Logger with new log file if already instantiated
-        Logger::getInstance($resolved);
+        Logger::getInstance($logFile, self::$overrideLogFilename);
+        self::$logFile = $logFile;
     }
 
     /**
@@ -217,9 +267,34 @@ class NimbblClient
      * 
      * @return string|null Log file path or null if not set
      */
-    public static function getLogFile()
+    public static function getLogFile(): ?string
     {
         return self::$logFile;
+    }
+
+    /**
+     * Set whether to override log filename
+     * 
+     * @param bool $overrideLogFilename True to override log filename (no date suffix), false for auto-dating
+     * @return void
+     */
+    public static function setOverrideLogFilename(bool $overrideLogFilename): void
+    {
+        self::$overrideLogFilename = $overrideLogFilename;
+        // Reinitialize Logger with new setting
+        if (self::$logFile !== null) {
+            Logger::getInstance(self::$logFile, $overrideLogFilename);
+        }
+    }
+
+    /**
+     * Get whether log filename is overridden (uses static name without date suffix)
+     * 
+     * @return bool True if log filename is overridden, false if auto-dating is enabled
+     */
+    public static function isOverrideLogFilenameEnabled(): bool
+    {
+        return self::$overrideLogFilename;
     }
 
     /**
@@ -227,7 +302,7 @@ class NimbblClient
      * 
      * @return Order
      */
-    public function orders()
+    public function orders(): Order
     {
         return new Order();
     }
@@ -237,7 +312,7 @@ class NimbblClient
      * 
      * @return Transaction
      */
-    public function transactions()
+    public function transactions(): Transaction
     {
         return new Transaction();
     }
@@ -247,7 +322,7 @@ class NimbblClient
      * 
      * @return Refund
      */
-    public function refunds()
+    public function refunds(): Refund
     {
         return new Refund();
     }
@@ -257,7 +332,7 @@ class NimbblClient
      * 
      * @return Addresses
      */
-    public function addresses()
+    public function addresses(): Addresses
     {
         return new Addresses();
     }
@@ -267,7 +342,7 @@ class NimbblClient
      * 
      * @return Payment
      */
-    public function payments()
+    public function payments(): Payment
     {
         return new Payment();
     }
@@ -277,7 +352,7 @@ class NimbblClient
      * 
      * @return PaymentLink
      */
-    public function paymentLinks()
+    public function paymentLinks(): PaymentLink
     {
         return new PaymentLink();
     }
@@ -287,7 +362,7 @@ class NimbblClient
      * 
      * @return CheckoutUtilities
      */
-    public function checkoutUtilities()
+    public function checkoutUtilities(): CheckoutUtilities
     {
         return new CheckoutUtilities();
     }
@@ -297,7 +372,7 @@ class NimbblClient
      * 
      * @return Auth
      */
-    public function auth()
+    public function auth(): Auth
     {
         return new Auth();
     }
@@ -307,7 +382,7 @@ class NimbblClient
      * 
      * @return SignatureVerifier
      */
-    public function signatureVerifier()
+    public function signatureVerifier(): SignatureVerifier
     {
         return new SignatureVerifier();
     }

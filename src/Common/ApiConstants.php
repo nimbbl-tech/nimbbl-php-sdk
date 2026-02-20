@@ -41,7 +41,7 @@ class ApiConstants
     const CHECKOUT_LIST_EMIS = self::API_VERSION . '/emis';
     const CHECKOUT_OFFERS = self::API_VERSION . '/offers';
     const CHECKOUT_GET_BIN_DATA = self::API_VERSION . '/get-bin-data';
-    const CHECKOUT_GET_CARD_DETAILS = self::API_VERSION . '/get-card-details';
+    const CHECKOUT_GET_CARD_DETAILS = self::API_VERSION . '/cards';
     const CHECKOUT_VALIDATE_VPA = self::API_VERSION . '/validate-vpa';
     const CHECKOUT_GET_UPI_APP_DETAILS = self::API_VERSION . '/get-upi-app-details';
 

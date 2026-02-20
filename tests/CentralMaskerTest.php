@@ -1,5 +1,7 @@
 <?php
 
+namespace Nimbbl\Tests;
+
 use Nimbbl\Api\Common\CentralMasker;
 use Nimbbl\Api\Common\JsonKeys;
 use PHPUnit\Framework\TestCase;

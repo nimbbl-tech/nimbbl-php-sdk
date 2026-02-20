@@ -2,7 +2,6 @@
 
 namespace Nimbbl\Api\Services;
 
-use Exception;
 use Nimbbl\Api\RestClient\Request;
 use Nimbbl\Api\RestClient\NimbblClient;
 
@@ -13,7 +12,7 @@ use Nimbbl\Api\Common\HttpStatusCodes;
 use Nimbbl\Api\Common\JsonKeys;
 use Nimbbl\Api\Common\ErrorCodes;
 use Nimbbl\Api\Log\Logger;
-use Nimbbl\Api\Encryption;
+use Nimbbl\Api\Common\Encryption;
 use Nimbbl\Api\Exception\NimbblException;
 
 /**

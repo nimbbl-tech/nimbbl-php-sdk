@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+namespace Nimbbl\Tests;
+
 require_once __DIR__ . '/../example/utils/helpers.php';
 
 use Nimbbl\Api\RestClient\NimbblClient;
@@ -23,8 +25,7 @@ final class SignatureVerifierTest extends TestCase
         $api = new NimbblClient(
             $this->config['access_key'],
             $this->config['access_secret'],
-            $this->config['api_url'],
-            $this->config['api_version']
+            $this->config['api_endpoint']
         );
         $this->signatureVerifier = $api->signatureVerifier();
         $this->secret = 'test_secret_key_12345'; // Use a fixed secret for reproducible tests
@@ -172,7 +173,7 @@ final class SignatureVerifierTest extends TestCase
 
         $jsonPayload = json_encode($data);
 
-        $result = $this->signatureVerifier->verifyAndParseWebhook($jsonPayload, $this->secret);
+        $result = $this->signatureVerifier->verifySignature($jsonPayload, $this->secret);
 
         $this->assertTrue($result['success'], 'Verify and Parse should succeed');
         $this->assertIsArray($result['parsed']);

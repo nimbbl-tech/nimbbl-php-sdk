@@ -3,7 +3,7 @@
 /**
  * Nimbbl PHP SDK - Interactive CLI Menu
  * 
- * Match .NET SDK: Examples/Program.cs
+ * Interactive command-line interface for testing all SDK features
  * 
  * Usage: php cli.php
  */
@@ -15,6 +15,16 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/utils/helpers.php';
 require_once __DIR__ . '/utils/cli_output.php';
+
+function readInputLine(): ?string
+{
+    $line = fgets(STDIN);
+    if ($line === false) {
+        return null;
+    }
+
+    return trim($line);
+}
 
 function printMenu()
 {
@@ -74,7 +84,7 @@ if (empty($config['access_key']) || $config['access_key'] === 'your_access_key_h
     printInfo("Copy config.php.example to config.php and update:\n");
     printInfo("  - access_key\n");
     printInfo("  - access_secret\n");
-    printInfo("  - api_url (optional, defaults to UAT)\n");
+    printInfo("  - api_host (optional, defaults to SDK base URL)\n");
     exit(1);
 }
 
@@ -86,8 +96,13 @@ $api = initApi($config);
 // Main menu loop
 while (true) {
     printMenu();
-    $choice = trim(fgets(STDIN));
+    $choice = readInputLine();
     echo "\n";
+
+    if ($choice === null) {
+        printInfo("No interactive input detected. Exiting.\n");
+        exit(0);
+    }
 
     if (empty($choice) || $choice === '0') {
         printInfo("Goodbye!\n");
@@ -332,15 +347,18 @@ while (true) {
                 printError("Invalid choice. Please select a number from 0-32.\n");
                 break;
         }
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         printException($e);
-        if (isset($config['enable_logging']) && $config['enable_logging']) {
+        if (!empty($config['debug_logging'])) {
             echo "Check logs/nimbbl_debug.log for details.\n";
         }
     }
 
     printSeparator();
     echo "\nPress Enter to continue...";
-    fgets(STDIN);
+    if (fgets(STDIN) === false) {
+        echo "\n";
+        exit(0);
+    }
     echo "\n";
 }

@@ -2,12 +2,9 @@
 
 namespace Nimbbl\Api\Services;
 
-use Exception;
 use Nimbbl\Api\RestClient\Request;
 use Nimbbl\Api\Common\ApiConstants;
 use Nimbbl\Api\Common\SdkConstants;
-use Nimbbl\Api\Common\ErrorMessages;
-use Nimbbl\Api\Exception\NimbblException;
 
 /**
  * Nimbbl Payments API Client

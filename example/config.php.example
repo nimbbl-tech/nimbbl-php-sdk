@@ -9,12 +9,20 @@
 return [
     'access_key' => getenv('NIMBBL_ACCESS_KEY') ?: 'your_access_key_here',
     'access_secret' => getenv('NIMBBL_ACCESS_SECRET') ?: 'your_access_secret_here',
-    // Base URL + version used by SDK and tests
-    'api_url' => 'https://api.nimbbl.tech/api/',
-    'api_version' => 'v3',
+    // Base URL host used by SDK and tests
+    // Prod: https://api.nimbbl.tech
+    // UAT:  https://apipp.nimbbl.tech
+    'api_host' => 'https://api.nimbbl.tech',
     // Logging (optional)
-    'enable_logging' => true,
     'log_file' => __DIR__ . '/../logs/nimbbl_debug.log',
     // Debug logging flag (controls Logger::enableDebugLogging/disableDebugLogging)
     'debug_logging' => false,
+    // When true, log file is exactly log_file; when false, date suffix is appended
+    'override_log_filename' => false,
+    // Optional: Enable encryption for outgoing request payloads
+    'encrypt_payload' => false,
+    // Optional: Override host used by sample checkout launcher callbacks
+    'app_host' => null,
+    // Optional: Override checkout JS host for QA/sandbox environments
+    'checkout_host' => null,
 ];

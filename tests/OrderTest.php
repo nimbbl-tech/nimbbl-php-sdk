@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+namespace Nimbbl\Tests;
+
 // require_once __DIR__ . '/../vendor/autoload.php';
 
 require_once __DIR__ . '/../example/utils/helpers.php';
@@ -25,8 +27,7 @@ final class OrderTest extends TestCase
         $api = new NimbblClient(
             $this->config['access_key'],
             $this->config['access_secret'],
-            $this->config['api_url'],
-            $this->config['api_version']
+            $this->config['api_endpoint']
         );
 
         // Generate merchant token first
@@ -72,8 +73,7 @@ final class OrderTest extends TestCase
         $api = new NimbblClient(
             $this->config['access_key'],
             $this->config['access_secret'],
-            $this->config['api_url'],
-            $this->config['api_version']
+            $this->config['api_endpoint']
         );
 
         // Generate merchant token

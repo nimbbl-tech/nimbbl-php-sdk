@@ -4,7 +4,7 @@ This guide explains how to test all APIs in the Nimbbl PHP SDK v4.0.0.
 
 ## v4.0.0 Changes
 
-The SDK has been restructured to match the .NET SDK architecture:
+The SDK has been restructured with the following changes:
 - **Client Class**: `Nimbbl\Api\Api` is replaced by `Nimbbl\Api\RestClient\NimbblClient`.
 - **Namespaces**: Services are now in `Nimbbl\Api\Services`.
 - **Tests**: All tests have been updated to use the new structure.
@@ -27,8 +27,7 @@ nano example/config.php
 return [
     'access_key' => 'your_access_key_here',
     'access_secret' => 'your_access_secret_here',
-    'api_url' => 'https://apipp.nimbbl.tech/api/', // UAT/Sandbox
-    'api_version' => 'v3',
+   'api_host' => 'https://apipp.nimbbl.tech', // UAT/Sandbox host
 ];
 ```
 

@@ -2,7 +2,6 @@
 
 namespace Nimbbl\Api\Services;
 
-use Exception;
 use Nimbbl\Api\RestClient\Request;
 use Nimbbl\Api\Common\ApiConstants;
 use Nimbbl\Api\Common\ErrorCodes;

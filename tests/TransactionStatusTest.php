@@ -21,8 +21,7 @@ $config = loadConfig();
 $api = new NimbblClient(
     $config['access_key'],
     $config['access_secret'],
-    $config['api_url'],
-    $config['api_version']
+    $config['api_endpoint']
 );
 
 echo "=== Transaction Status API Test ===\n\n";

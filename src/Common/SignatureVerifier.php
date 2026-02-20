@@ -10,7 +10,6 @@ use Nimbbl\Api\Log\Logger;
 
 /**
  * Utility helpers for signature and webhook verification.
- * Aligned with .NET SDK SignatureVerifier.cs
  */
 class SignatureVerifier
 {
@@ -142,7 +141,14 @@ class SignatureVerifier
         $invoiceId = $this->tryGetString($order, JsonKeys::INVOICE_ID);
         $transactionType = $this->tryGetString($txn, JsonKeys::TRANSACTION_TYPE);
         $refundAmount = $this->tryGetDouble($txn, JsonKeys::REFUND_AMOUNT);
-        $transactionCurrency = $this->tryGetString($txn, JsonKeys::TRANSACTION_CURRENCY);
+        
+        // For refunds, get currency from order.refund_details.refundable_currency
+        $refundDetails = $order[JsonKeys::REFUND_DETAILS] ?? null;
+        $transactionCurrency = null;
+        if (is_array($refundDetails)) {
+            $transactionCurrency = $this->tryGetString($refundDetails, JsonKeys::REFUNDABLE_CURRENCY);
+        }
+        
         $status = $this->tryGetString($txn, JsonKeys::REFUND_STATUS);
 
         $missing = [];
@@ -153,7 +159,7 @@ class SignatureVerifier
         if ($refundAmount === null)
             $missing[] = JsonKeys::REFUND_AMOUNT;
         if (empty($transactionCurrency))
-            $missing[] = JsonKeys::TRANSACTION_CURRENCY;
+            $missing[] = JsonKeys::REFUNDABLE_CURRENCY;
         if (empty($status))
             $missing[] = JsonKeys::REFUND_STATUS;
         if (empty($transactionType))
@@ -297,46 +303,6 @@ class SignatureVerifier
         return $this->verifyPaymentSignature($payload, $secretKey);
     }
 
-    /**
-     * Verify and parse webhook payload
-     * 
-     * @param string $payload JSON payload string
-     * @param string|null $secretKey
-     * @return array Result array with 'success' and 'parsed' data or error
-     */
-    public function verifyAndParseWebhook($payload, $secretKey)
-    {
-        $logger = Logger::getInstance();
-        $parsed = json_decode($payload, true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            $logger->error("Webhook parse error: " . json_last_error_msg());
-            return $this->createResult(false, "Invalid JSON payload");
-        }
-
-        $result = $this->verifySignature($parsed, $secretKey);
-
-        if ($result['success']) {
-            $logger->info(ErrorMessages::MESSAGE_SIGNATURE_VERIFICATION_SUCCESS);
-            $result['parsed'] = $parsed;
-        } else {
-            $logger->error(ErrorMessages::MESSAGE_WEBHOOK_VERIFICATION_FAILED . ": " . $result['message']);
-        }
-
-        return $result;
-    }
-
-    /**
-     * Parse webhook event without verification
-     */
-    public function parseWebhookEvent($payload)
-    {
-        if (empty($payload))
-            return null;
-        $decoded = json_decode($payload, true);
-        return (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) ? $decoded : null;
-    }
-
     // --- Helper Methods ---
 
     private function createResult($success, $message, $error = null)
@@ -391,50 +357,5 @@ class SignatureVerifier
             'refund_failed'
         ];
         return in_array(strtolower($eventType), $types, true);
-    }
-
-    /**
-     * Verify payment signature (legacy helper expected by sample apps).
-     *
-     * Signature format: HMAC_SHA256(transaction_id|amount, access_secret)
-     * Amount is normalized to 2 decimals (e.g., "100" -> "100.00") to match SDK behavior.
-     *
-     * @param string $signature Provided signature (hex)
-     * @param string $transactionId Transaction ID
-     * @param string|float|int $amount Amount
-     * @param string $secret Access secret
-     * @return bool True if signature matches, else false
-     */
-    public static function verifyPaymentSignatureLegacy($signature, $transactionId, $amount, $secret)
-    {
-        $logger = Logger::getInstance();
-        try {
-            if (empty($secret) || empty($transactionId) || empty($signature) || $amount === null) {
-                $logger->error(ErrorMessages::SIGNATURE_VERIFICATION_FAILED_MISSING_PARAMS);
-                return false;
-            }
-
-            $amountStr = number_format((float) $amount, 2, '.', '');
-            $payload = $transactionId . '|' . $amountStr;
-            $expected = hash_hmac('sha256', $payload, $secret);
-            $ok = hash_equals($expected, (string) $signature);
-
-            if ($ok) {
-                $logger->info(ErrorMessages::SIGNATURE_VERIFICATION_SUCCESS . " - Transaction ID: {$transactionId}, Amount: {$amountStr}");
-            } else {
-                $logger->error(ErrorMessages::SIGNATURE_VERIFICATION_FAILED . " - Transaction ID: {$transactionId}, Amount: {$amountStr}");
-            }
-
-            return $ok;
-        } catch (\Throwable $e) {
-            // Don't throw from verification helper; match typical SDK helper behavior.
-            try {
-                $ex = $e instanceof \Exception ? $e : new \Exception($e->getMessage());
-                $logger->exception(ErrorMessages::SIGNATURE_VERIFICATION_ERROR . ErrorMessages::ERROR_PREFIX_GENERAL . $e->getMessage(), $ex);
-            } catch (\Throwable $t) {
-                // ignore
-            }
-            return false;
-        }
     }
 }

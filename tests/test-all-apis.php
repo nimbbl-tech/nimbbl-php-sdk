@@ -39,8 +39,7 @@ $config = loadConfig();
 $api = new NimbblClient(
     $config['access_key'],
     $config['access_secret'],
-    $config['api_url'],
-    $config['api_version']
+    $config['api_endpoint']
 );
 
 // Generate merchant token for admin operations (Transaction Enquiry, Refunds)
@@ -117,9 +116,8 @@ if ($testRefreshToken) {
         $authToken = $tokenResponse['token'];
 
         // Build the refresh token endpoint URL
-        $baseUrl = rtrim($config['api_url'], '/');
-        $apiVersion = ltrim($config['api_version'], '/');
-        $endpoint = $baseUrl . '/' . $apiVersion . '/refresh-token';
+        $baseUrl = rtrim($config['api_endpoint'], '/');
+        $endpoint = $baseUrl . '/refresh-token';
 
         // Make request with Bearer token and refresh_token in body
         $headers = [
@@ -272,9 +270,8 @@ if ($testRefreshToken) {
         $authToken = $tokenResponse['token'];
 
         // Build the refresh token endpoint URL
-        $baseUrl = rtrim($config['api_url'], '/');
-        $apiVersion = ltrim($config['api_version'], '/');
-        $endpoint = $baseUrl . '/' . $apiVersion . '/refresh-token';
+        $baseUrl = rtrim($config['api_endpoint'], '/');
+        $endpoint = $baseUrl . '/refresh-token';
 
         // Make request with Bearer token and refresh_token in body
         $headers = [

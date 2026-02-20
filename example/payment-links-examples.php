@@ -104,10 +104,11 @@ function createPaymentLinkExample()
         $addMoreItems = (strtolower($addMore) === 'y');
     }
 
-    // Required field: expires_at
+    // Required field: expires_at (default: 24 hours from now)
     printInfo("\nRequired Field:\n");
-    $expiresAt = getInput("Expires At (YYYY-MM-DD HH:MM:SS, required, UTC): ");
-    if ($expiresAt === null) {
+    $defaultExpiresAt = (new DateTime('+24 hours', new DateTimeZone('UTC')))->format('Y-m-d H:i:s');
+    $expiresAt = getInput("Expires At (YYYY-MM-DD HH:MM:SS, UTC, default: {$defaultExpiresAt}): ", false) ?: $defaultExpiresAt;
+    if (empty($expiresAt)) {
         printError("Expires At is required.\n");
         return;
     }
@@ -622,7 +623,7 @@ if (basename($_SERVER['PHP_SELF']) === 'payment-links-examples.php') {
         printInfo("Copy config.php.example to config.php and update:\n");
         printInfo("  - access_key\n");
         printInfo("  - access_secret\n");
-        printInfo("  - api_url (optional, defaults to UAT)\n");
+        printInfo("  - api_host (optional, defaults to SDK base URL)\n");
         exit(1);
     }
 

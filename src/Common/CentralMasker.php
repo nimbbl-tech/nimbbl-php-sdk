@@ -6,7 +6,6 @@ use Nimbbl\Api\Common\JsonKeys;
 
 /**
  * Utility to mask sensitive data in headers and JSON bodies for logging.
- * Aligned with .NET SDK CentralMasker.cs
  */
 class CentralMasker
 {
@@ -244,7 +243,7 @@ class CentralMasker
         return array_keys($array) !== range(0, count($array) - 1);
     }
 
-    // --- Masking Methods (Aligned with .NET) ---
+    // --- Masking Methods ---
 
     private static function maskString($value)
     {
@@ -421,8 +420,9 @@ class CentralMasker
 
     private static function maskCardNumber($value)
     {
-        if (empty($value))
+        if (empty($value)) {
             return $value;
+        }
 
         $cleaned = str_replace([' ', '-'], '', $value);
         if (strlen($cleaned) >= 4 && is_numeric($cleaned)) {

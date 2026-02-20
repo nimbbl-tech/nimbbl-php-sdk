@@ -1,6 +1,6 @@
 <?php
 
-namespace Nimbbl\Api;
+namespace Nimbbl\Api\Common;
 
 use Exception;
 use Nimbbl\Api\Common\HttpStatusCodes;
@@ -61,13 +61,13 @@ class Encryption
      * Encryption key (32 bytes for AES-256)
      * @var string
      */
-    private $encryptionKey;
+    private string $encryptionKey;
 
     /**
      * Number of SHA256 iterations for key generation
      * @var int
      */
-    private $keyIterations;
+    private int $keyIterations;
 
     /**
      * Constructor
@@ -75,8 +75,16 @@ class Encryption
      * @param string $accessSecret Access secret from Nimbbl dashboard
      * @param int $keyIterations Number of SHA256 iterations (default: 1)
      *                           Note: Any mismatch with merchant settings will fail encryption/decryption
+     * 
+     * ⚠️ SECURITY WARNING:
+     * The default single iteration (1) is cryptographically weak.
+     * This is maintained for backward compatibility with existing merchant configurations.
+     * For new implementations, consider requesting merchant to increase iterations
+     * or implement PBKDF2 with higher iteration counts.
+     * 
+     * @throws NimbblException If the access secret is empty
      */
-    public function __construct($accessSecret, $keyIterations = 1)
+    public function __construct(string $accessSecret, int $keyIterations = 1)
     {
         if (empty($accessSecret)) {
             throw new NimbblException(
@@ -92,21 +100,27 @@ class Encryption
     }
 
     /**
-     * Generate encryption key from access secret
+     * Generate encryption key from access secret using SHA256
      * 
      * Steps:
      * 1. Remove "access_secret_" prefix from access secret
      * 2. Generate SHA256 hash (with optional iterations)
+     * 3. Returns 32-byte key suitable for AES-256-GCM
+     * 
+     * ⚠️ NOTE: For improved security, consider using PBKDF2 instead:
+     * Current implementation: hash_hmac('sha256', $secret, '', true)
+     * Recommended: hash_pbkdf2('sha256', $secret, $salt, 100000)
      * 
      * @param string $accessSecret Access secret
      * @return void
      */
-    private function generateKey($accessSecret)
+    private function generateKey(string $accessSecret): void
     {
         // Remove "access_secret_" prefix
         $keyString = str_replace('access_secret_', '', $accessSecret);
 
         // Generate SHA256 hash (with iterations)
+        // Note: This iterates the hash itself, not using PBKDF2
         $byteKey = $keyString;
         for ($i = 0; $i < $this->keyIterations; $i++) {
             $byteKey = hash('sha256', $byteKey, true); // true = raw binary output
@@ -127,7 +141,7 @@ class Encryption
      * @return string Hex-encoded encrypted string
      * @throws NimbblException If encryption fails
      */
-    public function encrypt($data)
+    public function encrypt($data): string
     {
         $logger = Logger::getInstance();
         try {
@@ -238,7 +252,7 @@ class Encryption
      * @return string|array Decrypted data
      * @throws NimbblException If decryption fails
      */
-    public function decrypt($encryptedData, $returnAsArray = false)
+    public function decrypt(string $encryptedData, bool $returnAsArray = false)
     {
         $logger = Logger::getInstance();
         try {
@@ -348,7 +362,7 @@ class Encryption
      * 
      * @return string Hex representation of encryption key
      */
-    public function getEncryptionKeyHex()
+    public function getEncryptionKeyHex(): string
     {
         return bin2hex($this->encryptionKey);
     }

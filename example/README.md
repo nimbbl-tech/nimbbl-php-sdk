@@ -105,9 +105,8 @@ Edit `config.php` with your Nimbbl credentials:
 return [
     'access_key' => getenv('NIMBBL_ACCESS_KEY') ?: 'your_access_key_here',
     'access_secret' => getenv('NIMBBL_ACCESS_SECRET') ?: 'your_access_secret_here',
-    'api_url' => 'https://api.nimbbl.tech/api/',  // Production
-    // 'api_url' => 'https://apipp.nimbbl.tech/api/',  // UAT/Sandbox
-    'api_version' => 'v3',
+    'api_host' => 'https://api.nimbbl.tech',  // Production
+    // 'api_host' => 'https://apipp.nimbbl.tech',  // UAT/Sandbox
     // Note: Webhook verification uses access_secret automatically
 ];
 ```
@@ -142,7 +141,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/utils/helpers.php';
 
-use Nimbbl\Api\Api;
+use Nimbbl\Api\RestClient\NimbblClient;
 
 // Initialize API
 $config = loadConfig();

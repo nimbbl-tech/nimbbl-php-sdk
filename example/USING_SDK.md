@@ -79,14 +79,13 @@ composer update
 <?php
 require_once 'vendor/autoload.php';
 
-use Nimbbl\Api\Api;
+use Nimbbl\Api\RestClient\NimbblClient;
 
 // Initialize the SDK
-$api = new Api(
+$api = new NimbblClient(
     'your_access_key',
     'your_access_secret',
-    'https://api.nimbbl.tech/api/', // API base URL
-    'v3' // API version
+    'https://api.nimbbl.tech/api/v3' // API endpoint
 );
 ```
 
@@ -96,14 +95,13 @@ $api = new Api(
 <?php
 require_once 'vendor/autoload.php';
 
-use Nimbbl\Api\Api;
+use Nimbbl\Api\RestClient\NimbblClient;
 
 // Initialize SDK
-$api = new Api(
+$api = new NimbblClient(
     getenv('NIMBBL_ACCESS_KEY'),
     getenv('NIMBBL_ACCESS_SECRET'),
-    'https://api.nimbbl.tech/api/',
-    'v3'
+    rtrim(getenv('NIMBBL_API_HOST') ?: 'https://api.nimbbl.tech', '/') . '/api/v3'
 );
 
 // Step 1: Generate merchant token
@@ -162,18 +160,17 @@ Create `app/Providers/NimbblServiceProvider.php`:
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use Nimbbl\Api\Api;
+use Nimbbl\Api\RestClient\NimbblClient;
 
 class NimbblServiceProvider extends ServiceProvider
 {
     public function register()
     {
         $this->app->singleton('nimbbl', function ($app) {
-            return new Api(
+            return new NimbblClient(
                 config('services.nimbbl.access_key'),
                 config('services.nimbbl.access_secret'),
-                config('services.nimbbl.api_url', 'https://api.nimbbl.tech/api/'),
-                config('services.nimbbl.api_version', 'v3')
+                rtrim(config('services.nimbbl.api_host', 'https://api.nimbbl.tech'), '/') . '/api/v3'
             );
         });
     }
@@ -186,8 +183,7 @@ class NimbblServiceProvider extends ServiceProvider
 'nimbbl' => [
     'access_key' => env('NIMBBL_ACCESS_KEY'),
     'access_secret' => env('NIMBBL_ACCESS_SECRET'),
-    'api_url' => env('NIMBBL_API_URL', 'https://api.nimbbl.tech/api/'),
-    'api_version' => env('NIMBBL_API_VERSION', 'v3'),
+    'api_host' => env('NIMBBL_API_HOST', 'https://api.nimbbl.tech'),
 ],
 ```
 
@@ -241,7 +237,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 require_once APPPATH . '../vendor/autoload.php';
 
-use Nimbbl\Api\Api;
+use Nimbbl\Api\RestClient\NimbblClient;
 
 class Nimbbl
 {
@@ -249,11 +245,10 @@ class Nimbbl
     
     public function __construct()
     {
-        $this->api = new Api(
+        $this->api = new NimbblClient(
             getenv('NIMBBL_ACCESS_KEY'),
             getenv('NIMBBL_ACCESS_SECRET'),
-            'https://api.nimbbl.tech/api/',
-            'v3'
+            rtrim(getenv('NIMBBL_API_HOST') ?: 'https://api.nimbbl.tech', '/') . '/api/v3'
         );
     }
     
@@ -307,12 +302,11 @@ composer require nimbbl/nimbbl-sdk
 
 ```yaml
 services:
-    Nimbbl\Api\Api:
+    Nimbbl\Api\RestClient\NimbblClient:
         arguments:
-            $accessKey: '%env(NIMBBL_ACCESS_KEY)%'
-            $accessSecret: '%env(NIMBBL_ACCESS_SECRET)%'
-            $baseUrl: '%env(NIMBBL_API_URL)%'
-            $apiVersion: '%env(NIMBBL_API_VERSION)%'
+            $key: '%env(NIMBBL_ACCESS_KEY)%'
+            $secret: '%env(NIMBBL_ACCESS_SECRET)%'
+            $url: '%env(NIMBBL_API_HOST)%/api/v3'
 ```
 
 #### Usage in Controller
@@ -321,14 +315,14 @@ services:
 <?php
 namespace App\Controller;
 
-use Nimbbl\Api\Api;
+use Nimbbl\Api\RestClient\NimbblClient;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 
 class PaymentController extends AbstractController
 {
     private $api;
     
-    public function __construct(Api $api)
+    public function __construct(NimbblClient $api)
     {
         $this->api = $api;
     }
@@ -369,17 +363,16 @@ composer require nimbbl/nimbbl-sdk
 <?php
 require_once 'vendor/autoload.php';
 
-use Nimbbl\Api\Api;
+use Nimbbl\Api\RestClient\NimbblClient;
 
 // Load configuration
 $config = require 'config.php';
 
 // Initialize SDK
-$api = new Api(
+$api = new NimbblClient(
     $config['access_key'],
     $config['access_secret'],
-    $config['api_url'],
-    $config['api_version']
+    rtrim($config['api_host'], '/') . '/api/v3'
 );
 
 // Use SDK
@@ -399,8 +392,7 @@ Recommended approach for production:
 # .env file
 NIMBBL_ACCESS_KEY=your_access_key
 NIMBBL_ACCESS_SECRET=your_access_secret
-NIMBBL_API_URL=https://api.nimbbl.tech/api/
-NIMBBL_API_VERSION=v3
+NIMBBL_API_HOST=https://api.nimbbl.tech
 ```
 
 ### Configuration File
@@ -411,8 +403,7 @@ NIMBBL_API_VERSION=v3
 return [
     'access_key' => getenv('NIMBBL_ACCESS_KEY') ?: 'your_access_key',
     'access_secret' => getenv('NIMBBL_ACCESS_SECRET') ?: 'your_access_secret',
-    'api_url' => getenv('NIMBBL_API_URL') ?: 'https://api.nimbbl.tech/api/',
-    'api_version' => getenv('NIMBBL_API_VERSION') ?: 'v3',
+    'api_host' => getenv('NIMBBL_API_HOST') ?: 'https://api.nimbbl.tech',
 ];
 ```
 
@@ -532,38 +523,38 @@ php example/cli.php
   - 10. Payment Link Enquiry
   - 11. Payment Link Actions
 
-- **Addresses API** (8 options)
+- **Addresses API** (7 options)
   - 12. List Addresses
   - 13. Create Address
   - 14. Update Address
   - 15. Delete Address
-  - 16. Get Address by ID
-  - 17. Import Addresses
-  - 18. Check Address Eligibility
-  - 19. Link Order to Address
+    - 16. Import Addresses
+    - 17. Check Address Eligibility
+    - 18. Link Order to Address
 
 - **Refunds API** (1 option)
-  - 20. Initiate Refund
+    - 19. Initiate Refund
 
 - **Transactions API** (1 option)
-  - 21. Transaction Enquiry
+    - 20. Transaction Enquiry
 
 - **Checkout Utilities API** (9 options)
-  - 22. List Payment Modes
-  - 23. List Banks
-  - 24. List Wallets
-  - 25. List EMIs
-  - 26. Get Offers
-  - 27. Get Card BIN Data
-  - 28. Get Card Details
-  - 29. Validate UPI VPA
-  - 30. Get UPI App Details
+    - 21. List Payment Modes
+    - 22. List Banks
+    - 23. List Wallets
+    - 24. List EMIs
+    - 25. Get Offers
+    - 26. Get Card BIN Data
+    - 27. Get Card Details
+    - 28. Validate UPI VPA
+    - 29. Get UPI App Details
 
 - **Webhooks** (1 option)
-  - 31. Webhook Handling
+    - 30. Webhook Handling
 
-- **Examples** (1 option)
-  - 32. Encryption Examples
+- **Examples** (2 options)
+    - 31. Encryption Examples
+    - 32. Exception Handling Examples
 
 - **Exit**
   - 0. Exit
@@ -641,7 +632,7 @@ composer install
 ### API Errors
 
 - Check credentials in configuration
-- Verify API URL is correct
+- Verify API host is correct
 - Check network connectivity
 - Review error messages in response
 

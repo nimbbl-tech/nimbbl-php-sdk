@@ -16,7 +16,7 @@ class Logger
 {
     private static $instance = null;
     private static $enableDebugLogging = false;
-    private static $loggingEnabled = true; // Kept for BC but logic removed
+    
     private $logFile;
     private $logDir;
 
@@ -33,28 +33,30 @@ class Logger
     public const LOG_WARNING = 'WARNING';
     public const LOG_DESERIALIZATION_ERROR = 'DESERIALIZATION_ERROR';
 
-    private function __construct($logFile = null)
+    private function __construct($logFile = null, $overrideLogFilename = false)
     {
         if ($logFile === null) {
             // Check if Api class has a log file configured
             if (class_exists('Nimbbl\Api\RestClient\NimbblClient') && NimbblClient::getLogFile() !== null) {
                 $logFile = NimbblClient::getLogFile();
             } else {
-                // Calculate path relative to src/Log/ directory: go up two levels to project root, then logs/
-                $logFile = dirname(__FILE__) . '/../../logs/nimbbl_debug.log';
+                // Fallback: use logs directory relative to application root
+                $logFile = getcwd() . '/logs/nimbbl_debug.log';
             }
         }
-        $this->logFile = self::resolveLogFilePath($logFile);
+        $this->logFile = self::resolveLogFilePath($logFile, $overrideLogFilename);
         $this->logDir = dirname($logFile);
         if (!is_dir($this->logDir)) {
             mkdir($this->logDir, 0755, true);
         }
     }
 
-    public static function getInstance($logFile = null)
+    public static function getInstance($logFile = null, ?bool $overrideLogFilename = null)
     {
+        $overrideLogFilename = $overrideLogFilename ?? false;
+
         if ($logFile !== null) {
-            $logFile = self::resolveLogFilePath($logFile);
+            $logFile = self::resolveLogFilePath($logFile, $overrideLogFilename);
         }
         // If logFile is provided and instance exists with different path, reset instance
         if (self::$instance !== null && $logFile !== null && self::$instance->logFile !== $logFile) {
@@ -62,24 +64,37 @@ class Logger
         }
 
         if (self::$instance === null) {
-            self::$instance = new self($logFile);
+            self::$instance = new self($logFile, $overrideLogFilename);
         }
         return self::$instance;
     }
 
     /**
-     * Resolve the effective log file path used by the SDK (includes the date suffix).
+     * Resolve the effective log file path used by the SDK.
+     * 
+     * When $overrideLogFilename is false (default), appends date suffix (_ddMMyyyy).
+     * When $overrideLogFilename is true, returns the path as-is without date suffix.
      * Idempotent: if the input already ends with _ddMMyyyy before the extension, it will not add another suffix.
      *
-     * Example: logs/nimbbl_debug.log -> logs/nimbbl_debug_06012026.log
+     * Example with auto-dating enabled (override=false): logs/nimbbl_debug.log -> logs/nimbbl_debug_06012026.log
+     * Example with override enabled (override=true): logs/nimbbl_debug.log -> logs/nimbbl_debug.log
+     * 
+     * @param string $logFilePath The log file path
+     * @param bool $overrideLogFilename Whether to override log filename (no date suffix)
+     * @return string The resolved log file path
      */
-    public static function resolveLogFilePath($logFilePath)
+    public static function resolveLogFilePath($logFilePath, $overrideLogFilename = false)
     {
         if (!is_string($logFilePath) || trim($logFilePath) === '') {
             return $logFilePath;
         }
         // Don't mutate stream targets or /dev/null
         if (strpos($logFilePath, 'php://') === 0 || $logFilePath === '/dev/null') {
+            return $logFilePath;
+        }
+
+        // If override filename is enabled, return path as-is (no date suffix)
+        if ($overrideLogFilename) {
             return $logFilePath;
         }
 
@@ -92,7 +107,7 @@ class Logger
             return $logFilePath;
         }
 
-        $suffix = date('dmY'); // ddMMyyyy (local date, same as .NET sample)
+        $suffix = date('dmY'); // ddMMyyyy (local date)
         $newName = $name . '_' . $suffix . ($ext ? ('.' . $ext) : '');
         return ($dir && $dir !== '.') ? ($dir . DIRECTORY_SEPARATOR . $newName) : $newName;
     }
@@ -107,31 +122,6 @@ class Logger
         self::$enableDebugLogging = true;
     }
 
-    /**
-     * Enable all logging (No-op for BC with .NET parity)
-     */
-    public static function enableLogging()
-    {
-        // Parity with .NET: INFO and above are always enabled
-    }
-
-    /**
-     * Disable INFO/DEBUG logging (No-op for BC with .NET parity)
-     */
-    public static function disableLogging()
-    {
-        // Parity with .NET: INFO and above are always enabled
-    }
-
-    /**
-     * Check if logging is enabled (Always true for parity with .NET)
-     * 
-     * @return bool
-     */
-    public static function isLoggingEnabled()
-    {
-        return true;
-    }
 
     /**
      * Disable debug logging
@@ -153,6 +143,8 @@ class Logger
         return self::$enableDebugLogging;
     }
 
+
+
     /**
      * Log method - main logging method
      * 
@@ -170,13 +162,13 @@ class Logger
     {
         $upperLevel = strtoupper($level);
 
-        // Match .NET behavior: INFO/WARNING/ERROR/CRITICAL always logged
+        // INFO/WARNING/ERROR/CRITICAL always logged
         // Only DEBUG logs are gated
         if ($upperLevel === 'DEBUG' && !self::$enableDebugLogging) {
             return;
         }
 
-        // Use UTC timestamps to match .NET sample output
+        // Use UTC timestamps
         $timestamp = gmdate(self::LOGGER_DATEFMT);
         $logMessage = sprintf(
             self::LOGGER_FORMAT,

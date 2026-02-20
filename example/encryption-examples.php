@@ -28,7 +28,7 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/utils/helpers.php';
 require_once __DIR__ . '/utils/cli_output.php';
 
-use Nimbbl\Api\Encryption;
+use Nimbbl\Api\Common\Encryption;
 use Nimbbl\Api\Common\JsonKeys;
 use Nimbbl\Api\Common\PayloadHelperUtils;
 use Nimbbl\Api\Common\SignatureVerifier;
@@ -317,7 +317,7 @@ if (basename($_SERVER['PHP_SELF']) === 'encryption-examples.php') {
         printInfo("Copy config.php.example to config.php and update:\n");
         printInfo("  - access_key\n");
         printInfo("  - access_secret\n");
-        printInfo("  - api_url (optional, defaults to UAT)\n");
+        printInfo("  - api_host (optional, defaults to SDK base URL)\n");
         exit(1);
     }
 

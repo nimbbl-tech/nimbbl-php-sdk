@@ -30,12 +30,17 @@ require_once 'vendor/autoload.php';
 
 use Nimbbl\Api\RestClient\NimbblClient;
 
+$config = [
+    'access_key' => 'your_access_key',
+    'access_secret' => 'your_access_secret',
+    'api_host' => 'https://api.nimbbl.tech',
+];
+
 // Initialize the SDK
 $api = new NimbblClient(
-    'your_access_key',
-    'your_access_secret',
-    'https://api.nimbbl.tech/api/', // API base URL
-    'v3' // API version
+    $config['access_key'],
+    $config['access_secret'],
+    rtrim($config['api_host'], '/') . '/api/v3' // API endpoint
 );
 
 // Step 1: Generate merchant token (for Transaction Enquiry/Refunds)
@@ -441,7 +446,7 @@ $result = $verifier->verifyCallbackSignature($parsed, $accessSecret);
 For direct encryption/decryption operations, use the `Encryption` class:
 
 ```php
-use Nimbbl\Api\Encryption;
+use Nimbbl\Api\Common\Encryption;
 
 // Initialize encryption with access secret
 $encryption = new Encryption($accessSecret);

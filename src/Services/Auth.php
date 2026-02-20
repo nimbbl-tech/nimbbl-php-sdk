@@ -2,9 +2,7 @@
 
 namespace Nimbbl\Api\Services;
 
-use Exception;
 use Nimbbl\Api\RestClient\Request;
-use Nimbbl\Api\RestClient\NimbblClient;
 use Nimbbl\Api\Common\ApiConstants;
 use Nimbbl\Api\Common\HttpStatusCodes;
 use Nimbbl\Api\Common\SdkConstants;

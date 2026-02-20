@@ -28,18 +28,20 @@ function loadConfig()
 
     $config = require $configFile;
 
-    // Validate required configuration
-    $required = ['access_key', 'access_secret', 'api_url', 'api_version'];
+    // Validate required credentials
+    $required = ['access_key', 'access_secret'];
     foreach ($required as $key) {
         if (empty($config[$key]) || $config[$key] === "your_{$key}_here") {
             throw new Exception("Please configure '{$key}' in config.php");
         }
     }
 
-    // Derive combined endpoint for legacy callers
-    $base = rtrim($config['api_url'], '/') . '/';
-    $version = ltrim($config['api_version'], '/');
-    $config['api_endpoint'] = $version === '' ? rtrim($base, '/') : $base . $version;
+    // Normalize API endpoint from api_host
+    if (!empty($config['api_host'])) {
+        $config['api_endpoint'] = rtrim($config['api_host'], '/') . '/api/v3';
+    } else {
+        throw new Exception("Please configure 'api_host' in config.php");
+    }
 
     return $config;
 }
@@ -60,9 +62,10 @@ function initApi($config)
         $config['access_key'],
         $config['access_secret'],
         $config['api_endpoint'],
-        null,
-        null,
-        $config['log_file'] ?? null
+        $config['log_file'] ?? null,
+        !empty($config['encrypt_payload']),
+        !empty($config['debug_logging']),
+        !empty($config['override_log_filename'])
     );
 }
 

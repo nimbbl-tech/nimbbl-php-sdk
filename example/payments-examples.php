@@ -37,11 +37,7 @@ function initiatePaymentExample()
         printError("Order ID is required.\n");
         return;
     }
-    $callbackUrl = getInput("Enter Callback URL (mandatory): ");
-    if ($callbackUrl === null) {
-        printError("Callback URL is required.\n");
-        return;
-    }
+    $callbackUrl = getInput("Enter Callback URL (optional): ", false);
     $paymentMode = getInput("Enter Payment Mode Code (net_banking/credit_card/etc): ", false) ?: 'net_banking';
 
     // Build payment data
@@ -51,16 +47,74 @@ function initiatePaymentExample()
         CheckoutConstants::OPTION_KEY_CALLBACK_URL => $callbackUrl,
     ];
 
-    if (strtolower($paymentMode) === CheckoutConstants::PAYMENT_MODE_NET_BANKING) {
-        printInfo("Bank Code is required for net_banking payment mode.\n");
-        echo "   Common bank codes: HDFC, ICICI, SBI, AXIS, KOTAK, etc.\n";
-        $bankCode = getInput("Enter Bank Code (default: HDFC): ", false) ?: 'HDFC';
-        $paymentData[CheckoutConstants::OPTION_KEY_BANK_CODE] = $bankCode;
-    } else {
-        $bankCode = getInput("Enter Bank Code (optional, for net_banking only): ", false);
-        if ($bankCode) {
+    // Payment mode specific data
+    switch (strtolower($paymentMode)) {
+        case CheckoutConstants::PAYMENT_MODE_NET_BANKING:
+            printInfo("Bank Code is required for net_banking payment mode.\n");
+            echo "   Common bank codes: HDFC, ICICI, SBI, AXIS, KOTAK, etc.\n";
+            $bankCode = getInput("Enter Bank Code (default: HDFC): ", false) ?: 'HDFC';
             $paymentData[CheckoutConstants::OPTION_KEY_BANK_CODE] = $bankCode;
-        }
+            break;
+
+        case CheckoutConstants::PAYMENT_MODE_UPI:
+            $paymentFlow = getInput("Enter UPI Payment Flow (intent/collect): ", false) ?: 'intent';
+            $paymentData[CheckoutConstants::OPTION_KEY_PAYMENT_FLOW] = $paymentFlow;
+
+            $upiId = getInput("Enter UPI ID (optional): ", false);
+            if (!empty($upiId)) {
+                $paymentData['upi_id'] = $upiId;
+            }
+
+            $upiAppCode = getInput("Enter UPI App Code (gpay/phonepe/paytm - optional): ", false);
+            if (!empty($upiAppCode)) {
+                $paymentData['upi_app_code'] = $upiAppCode;
+            }
+            break;
+
+        case CheckoutConstants::PAYMENT_MODE_WALLET:
+            $walletCode = getInput("Enter Wallet Code (e.g., FREECHARGE): ");
+            if ($walletCode === null) {
+                printError("Wallet Code is required for wallet payment mode.\n");
+                return;
+            }
+            $paymentData['wallet_code'] = $walletCode;
+            break;
+
+        case CheckoutConstants::PAYMENT_MODE_CREDIT_CARD:
+        case CheckoutConstants::PAYMENT_MODE_DEBIT_CARD:
+            $cardNo = getInput("Enter Card Number: ");
+            if ($cardNo === null) {
+                printError("Card Number is required.\n");
+                return;
+            }
+            $paymentData['card_no'] = $cardNo;
+
+            $cardInputType = getInput("Enter Card Input Type (card_pan/token - default: card_pan): ", false) ?: 'card_pan';
+            $paymentData['card_input_type'] = $cardInputType;
+
+            $cvv = getInput("Enter CVV: ");
+            if ($cvv === null) {
+                printError("CVV is required.\n");
+                return;
+            }
+            $paymentData['cvv'] = $cvv;
+
+            $cardHolderName = getInput("Enter Card Holder Name (optional): ", false);
+            if (!empty($cardHolderName)) {
+                $paymentData['card_holder_name'] = $cardHolderName;
+            }
+
+            $expiry = getInput("Enter Expiry (MM/YY): ");
+            if ($expiry === null) {
+                printError("Expiry is required (MM/YY format).\n");
+                return;
+            }
+            $paymentData['expiry'] = $expiry;
+            break;
+
+        default:
+            printInfo("No specific additional data required for {$paymentMode} mode.\n");
+            break;
     }
 
     try {
@@ -98,12 +152,10 @@ function completePaymentExample()
     ];
 
     if (strtolower($paymentFlow) === 'otp') {
-        $otp = getInput("Enter OTP: ");
-        if ($otp === null) {
-            printError("OTP is required for OTP flow.\n");
-            return;
+        $otp = getInput("Enter OTP (optional): ", false);
+        if (!empty($otp)) {
+            $data['otp'] = $otp;
         }
-        $data['otp'] = $otp;
     }
 
     try {
@@ -159,7 +211,7 @@ if (basename($_SERVER['PHP_SELF']) === 'payments-examples.php') {
         printInfo("Copy config.php.example to config.php and update:\n");
         printInfo("  - access_key\n");
         printInfo("  - access_secret\n");
-        printInfo("  - api_url (optional, defaults to UAT)\n");
+        printInfo("  - api_host (optional, defaults to SDK base URL)\n");
         exit(1);
     }
 

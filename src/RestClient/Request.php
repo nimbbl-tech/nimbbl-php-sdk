@@ -20,7 +20,7 @@ use Nimbbl\Api\Common\HttpStatusCodes;
 use Nimbbl\Api\Common\JsonKeys;
 use Nimbbl\Api\Common\ErrorCodes;
 use Nimbbl\Api\Log\Logger;
-use Nimbbl\Api\Encryption;
+use Nimbbl\Api\Common\Encryption;
 use Nimbbl\Api\Common\CentralMasker;
 
 /**
@@ -53,7 +53,7 @@ class Request
      * @param  string   $method HTTP Verb
      * @param  string   $url    Relative URL for the request
      * @param  array $data Data to be passed along the request
-     * @param  string|null $token Authentication token (required)
+    * @param  string|null $token Optional authentication token
      * @return array Response data in array format. Not meant
      * to be used directly
      */
@@ -85,9 +85,8 @@ class Request
 
             // Auth handling with priority:
             // 1. Token passed as parameter (highest priority)
-            // 2. Token from NimbblClient::getToken() (set at initialization)
-            // 3. Cached token (from generateToken or createOrder)
-            $authToken = $token ?? NimbblClient::getToken() ?? self::getCachedToken();
+            // 2. Cached token (from generateToken or auth response)
+            $authToken = $token ?? self::getCachedToken();
             $logger = Logger::getInstance();
 
             // Set Content-Type: application/json for requests with body (POST, PATCH, PUT)
@@ -95,13 +94,13 @@ class Request
                 $headers['Content-Type'] = 'application/json; charset=utf-8';
             }
 
-            // Log request (format + sequence aligned with .NET SDK logs)
+            // Log request
             $maskedUrl = $this->maskSensitiveInText($url);
             $requestLog = "{$methodUpper} {$maskedUrl}";
 
             // Log request headers (with masking for sensitive values)
             $maskedHeaders = $this->maskSensitiveInHeaders($headers);
-            // For parity with .NET sample logs, hide internal SDK headers from log output.
+            // Hide internal SDK headers from log output.
             unset($maskedHeaders['Nimbbl-API']);
             $requestLog .= "\nRequest Headers: " . $this->formatJsonForLog($maskedHeaders);
 
@@ -110,10 +109,10 @@ class Request
                 $formattedBody = $maskedBody;
                 $requestLog .= "\nRequest Body: " . $formattedBody;
             }
-            $this->alwaysLogInfo($requestLog, $component);
+            $this->logInfoWithSdkCallerContext($requestLog, $component);
 
             // DEBUG: Raw JSON Request (before sending)
-            $callerInfo = $this->getSdkCallerInfo($component);
+            $callerInfo = $this->resolveSdkCallerContext($component);
             if ($requestBody !== null) {
                 $logger->log(
                     "Raw JSON Request (before sending):\n" . $requestBody,
@@ -163,17 +162,17 @@ class Request
 
             $response = Requests::request($url, $headers, $requestBody, $methodUpper, $options);
 
-            // INFO: HTTP status line + response body (matches .NET: "200 OK for URL")
+            // INFO: HTTP status line + response body
             $statusText = $this->getHttpStatusText((int) $response->status_code);
             $responseLog = "{$response->status_code} {$statusText} for {$maskedUrl}";
             if (!empty($response->body)) {
                 $maskedResponseBody = CentralMasker::maskBody($response->body);
                 $responseLog .= "\nResponse Body: " . $maskedResponseBody;
             }
-            $this->alwaysLogInfo($responseLog, $component);
+            $this->logInfoWithSdkCallerContext($responseLog, $component);
 
             // If HTTP status is success but body carries an error envelope, surface it (before decryption)
-            // Match .NET: ThrowIfErrorEnvelope is called before decryption
+            // ThrowIfErrorEnvelope is called before decryption
             $isSuccessStatusCode = ($response->status_code >= 200 && $response->status_code < 300);
             if ($isSuccessStatusCode && !empty($response->body)) {
                 $this->throwIfErrorEnvelope($response->body, $callerInfo);
@@ -199,7 +198,7 @@ class Request
             }
 
             // Decrypt encrypted_response (if present) ONLY for success status codes
-            // Match .NET: decryption happens after error envelope check, only for success responses
+            // Decryption happens after error envelope check, only for success responses
             if ($isSuccessStatusCode && !empty($response->body)) {
                 $decrypted = $this->decryptEncryptedResponseBodyIfPresent($response->body);
                 if ($decrypted !== null) {
@@ -240,7 +239,6 @@ class Request
                 } catch (\Throwable $t) {
                     // ignore logging failures
                 }
-                // Match .NET: deserialization failures should throw (do not silently return an error array)
                 throw new ApiException(
                     ErrorMessages::MESSAGE_UNABLE_TO_PARSE_JSON,
                     ErrorCodes::DESERIALIZATION_ERROR,
@@ -263,7 +261,7 @@ class Request
 
             return $result;
         } catch (Exception $e) {
-            // Match .NET: propagate exceptions (do not swallow into a generic error array).
+            // Propagate exceptions (do not swallow into a generic error array)
             try {
                 $logger = $logger ?? Logger::getInstance();
                 $logger->exception("ERROR: " . $e->getMessage(), $e);
@@ -297,7 +295,6 @@ class Request
 
     /**
      * Detects error envelope in a 2xx response and throws mapped exception.
-     * Match .NET: ThrowIfErrorEnvelope
      */
     private function throwIfErrorEnvelope($responseBody, $callerInfo = null)
     {
@@ -332,7 +329,7 @@ class Request
 
     /**
      * Process the statusCode of the response and throw exception if necessary
-     * Match .NET: HandleErrorResponseAsync - also handles encrypted error responses
+     * Handles encrypted error responses
      * @param object $response The response object returned by Requests
      */
     protected function checkErrors($response)
@@ -340,9 +337,9 @@ class Request
         $logger = Logger::getInstance();
         $body = $response->body;
         $httpStatusCode = $response->status_code;
-        $callerInfo = $this->getSdkCallerInfo(SdkConstants::COMPONENT_REQUEST);
+        $callerInfo = $this->resolveSdkCallerContext(SdkConstants::COMPONENT_REQUEST);
 
-        // Check if error response is encrypted and decrypt if needed (match .NET HandleErrorResponseAsync)
+        // Check if error response is encrypted and decrypt if needed
         if (!empty($body)) {
             $decoded = json_decode($body, true);
             if (is_array($decoded) && isset($decoded[JsonKeys::ENCRYPTED_RESPONSE]) && is_string($decoded[JsonKeys::ENCRYPTED_RESPONSE])) {
@@ -367,10 +364,18 @@ class Request
         }
 
         try {
-            $body = json_decode($body, true);
-        } catch (Exception $e) {
+            // decrypt(..., true) returns array; body may already be array after decryption
+            if ( is_array( $body ) ) {
+                // already decoded (e.g. from decrypted error response)
+            } elseif ( is_string( $body ) ) {
+                $decoded = json_decode( $body, true );
+                $body = is_array( $decoded ) ? $decoded : array();
+            } else {
+                $body = array();
+            }
+        } catch (\Throwable $e) {
             $logger->exception("checkErrors ERROR: " . $e->getMessage(), $e);
-            $this->throwServerError($body, $httpStatusCode);
+            $this->throwServerError( is_string( $body ) ? $body : '', $httpStatusCode );
         }
 
         if (($httpStatusCode < 200) or ($httpStatusCode >= 300)) {
@@ -543,10 +548,10 @@ class Request
             $tokenReqLog = "POST {$tokenEndpoint}"
                 . "\nRequest Headers: " . $this->formatJsonForLog($maskedTokenHeaders)
                 . "\nRequest Body: {$maskedRequest}";
-            $this->alwaysLogInfo($tokenReqLog, SdkConstants::COMPONENT_REQUEST);
+            $this->logInfoWithSdkCallerContext($tokenReqLog, SdkConstants::COMPONENT_REQUEST);
 
             // DEBUG: Raw JSON Request (before sending)
-            $callerInfo = $this->getSdkCallerInfo(SdkConstants::COMPONENT_REQUEST);
+            $callerInfo = $this->resolveSdkCallerContext(SdkConstants::COMPONENT_REQUEST);
             $logger->log(
                 "Raw JSON Request (before sending):\n" . $maskedRequest,
                 Logger::LOG_DEBUG,
@@ -567,14 +572,14 @@ class Request
             );
             $tokenResponseBody = json_decode($tokenResponse->body, true);
 
-            // INFO: Token response (match .NET: "200 OK for URL")
+            // INFO: Token response
             $statusText = $this->getHttpStatusText((int) $tokenResponse->status_code);
             $tokenLog = "{$tokenResponse->status_code} {$statusText} for {$tokenEndpoint}";
             if (!empty($tokenResponse->body)) {
                 $maskedResponse = $this->maskSensitiveInText($tokenResponse->body);
                 $tokenLog .= "\nResponse Body: {$maskedResponse}";
             }
-            $this->alwaysLogInfo($tokenLog, SdkConstants::COMPONENT_REQUEST);
+            $this->logInfoWithSdkCallerContext($tokenLog, SdkConstants::COMPONENT_REQUEST);
 
             // DEBUG: Raw JSON Response (before deserialization)
             if (!empty($tokenResponse->body)) {
@@ -661,8 +666,7 @@ class Request
                 return self::$cachedToken;
             } else {
                 // Token expired, clear cache
-                self::$cachedToken = null;
-                self::$tokenExpiresAt = null;
+                self::clearTokenCache();
             }
         }
 
@@ -682,28 +686,23 @@ class Request
     }
 
     /**
-     * Log INFO messages for API calls (matches .NET SDK behavior: INFO is gated by enableLogging).
+     * Log INFO messages for API calls.
      * 
      * @param string $message Log message
      * @param string $component Component name
      * @return void
      */
-    private function alwaysLogInfo($message, $component = SdkConstants::COMPONENT_REQUEST)
+    private function logInfoWithSdkCallerContext($message, $component = SdkConstants::COMPONENT_REQUEST)
     {
-        // Respect Logger gating (INFO suppressed when logging disabled)
-        if (!Logger::isLoggingEnabled()) {
-            return;
-        }
 
         // Prefer SDK caller (e.g., Auth.php/Order.php) instead of merchant app file (e.g., public/index.php)
         $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 24);
         $caller = [];
         $requestFile = basename(__FILE__);
         $skipFunctions = [
-            'alwaysLogInfo',
-            'getSdkCallerInfo',
+            'logInfoWithSdkCallerContext',
+            'resolveSdkCallerContext',
             'getHttpStatusText',
-            'request',
             'getRequestHeaders',
             'maskSensitiveInText',
             'maskSensitiveInHeaders',
@@ -711,7 +710,8 @@ class Request
         ];
         $sdkSrcDir = realpath(dirname(__FILE__, 2)); // .../src
 
-        foreach ($backtrace as $frame) {
+        for ($i = 0; $i < count($backtrace); $i++) {
+            $frame = $backtrace[$i];
             $filePath = $frame['file'] ?? null;
             $file = $filePath ? basename($filePath) : null;
             $fn = $frame['function'] ?? '';
@@ -719,22 +719,34 @@ class Request
             if ($file && $file === $requestFile) {
                 continue;
             }
-            if ($fn !== '' && in_array($fn, $skipFunctions, true)) {
-                continue;
-            }
 
+            // Check if file is in SDK src directory first
             if ($sdkSrcDir && $filePath) {
                 $real = realpath($filePath);
                 if ($real && strpos($real, $sdkSrcDir . DIRECTORY_SEPARATOR) === 0) {
+                    // Found an SDK file - get the enclosing method from the next frame
                     $caller = $frame;
+                    // The next frame's function is the enclosing method
+                    if (isset($backtrace[$i + 1])) {
+                        $nextFrame = $backtrace[$i + 1];
+                        $caller['function'] = $nextFrame['function'] ?? $fn;
+                    }
                     break;
                 }
+            }
+
+            // Only skip functions for non-SDK files
+            if ($fn !== '' && in_array($fn, $skipFunctions, true)) {
+                continue;
             }
         }
 
         // Fallback: first non-Request.php frame
         if (empty($caller)) {
             foreach ($backtrace as $frame) {
+                $filePath = $frame['file'] ?? null;
+                $file = $filePath ? basename($filePath) : null;
+                $fn = $frame['function'] ?? '';
                 if ($file && $file !== $requestFile && ($fn === '' || !in_array($fn, $skipFunctions, true))) {
                     $caller = $frame;
                     break;
@@ -747,7 +759,7 @@ class Request
         $function = $caller['function'] ?? '-';
 
         // Use the SDK Logger so formatting + file/stdout behavior stays consistent.
-        // Pass caller info explicitly (module/line/function) to match .NET-style logs.
+        // Pass caller info explicitly (module/line/function) for consistent logs.
         try {
             $logFile = NimbblClient::getLogFile();
             $logger = Logger::getInstance($logFile);
@@ -762,15 +774,14 @@ class Request
      *
      * @return array{module:string,line:int,function:string}
      */
-    private function getSdkCallerInfo($component = SdkConstants::COMPONENT_REQUEST)
+    private function resolveSdkCallerContext($component = SdkConstants::COMPONENT_REQUEST)
     {
         $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 32);
         $requestFile = basename(__FILE__);
         $skipFunctions = [
-            'getSdkCallerInfo',
-            'alwaysLogInfo',
+            'resolveSdkCallerContext',
+            'logInfoWithSdkCallerContext',
             'getHttpStatusText',
-            'request',
             'getRequestHeaders',
             'maskSensitiveInText',
             'maskSensitiveInHeaders',
@@ -778,25 +789,34 @@ class Request
         ];
         $sdkSrcDir = realpath(dirname(__FILE__, 2));
 
-        foreach ($backtrace as $frame) {
+        for ($i = 0; $i < count($backtrace); $i++) {
+            $frame = $backtrace[$i];
             $filePath = $frame['file'] ?? null;
             $file = $filePath ? basename($filePath) : null;
             $fn = $frame['function'] ?? '';
             if ($file && $file === $requestFile) {
                 continue;
             }
-            if ($fn !== '' && in_array($fn, $skipFunctions, true)) {
-                continue;
-            }
+            // Check if file is in SDK src directory first
             if ($sdkSrcDir && $filePath) {
                 $real = realpath($filePath);
                 if ($real && strpos($real, $sdkSrcDir . DIRECTORY_SEPARATOR) === 0) {
+                    // Get the enclosing method from the next frame
+                    $enclosingMethod = $fn;
+                    if (isset($backtrace[$i + 1])) {
+                        $nextFrame = $backtrace[$i + 1];
+                        $enclosingMethod = $nextFrame['function'] ?? $fn;
+                    }
                     return [
                         'module' => basename($filePath),
                         'line' => $frame['line'] ?? 0,
-                        'function' => $fn ?: '-',
+                        'function' => $enclosingMethod ?: '-',
                     ];
                 }
+            }
+            // Only skip functions for non-SDK files
+            if ($fn !== '' && in_array($fn, $skipFunctions, true)) {
+                continue;
             }
         }
 
@@ -808,7 +828,7 @@ class Request
     }
 
     /**
-     * Minimal HTTP status text mapping to align with .NET log lines.
+     * Minimal HTTP status text mapping for log output.
      */
     private function getHttpStatusText(int $statusCode): string
     {
@@ -833,7 +853,7 @@ class Request
     }
 
     /**
-     * Format JSON for log output (compact JSON matching .NET SDK).
+     * Format JSON for log output (compact JSON).
      */
     private function formatJsonForLog($data): string
     {
@@ -843,7 +863,7 @@ class Request
 
     /**
      * Mask sensitive data in text (JSON strings, URLs, etc.)
-     * Match .NET: Uses CentralMasker.MaskBody() for consistent masking
+     * Uses CentralMasker.MaskBody() for consistent masking
      * 
      * @param string $text Text that may contain sensitive data
      * @return string Text with sensitive data masked
@@ -853,7 +873,7 @@ class Request
         if (empty($text)) {
             return $text;
         }
-        // Match .NET: when DEBUG logging is enabled, do not mask request/response logs.
+        // When DEBUG logging is enabled, do not mask request/response logs
         if (Logger::isDebugLoggingEnabled()) {
             return $text;
         }
@@ -864,14 +884,14 @@ class Request
 
     /**
      * Mask sensitive headers for logging
-     * Match .NET: Uses CentralMasker.MaskHeaders() or GetUnmaskedHeaders() based on debug mode
+     * Uses CentralMasker.MaskHeaders() or GetUnmaskedHeaders() based on debug mode
      * 
      * @param array $headers Request headers
      * @return array Headers with sensitive values masked
      */
     private function maskSensitiveInHeaders($headers)
     {
-        // Match .NET: when DEBUG logging is enabled, do not mask request/response logs.
+        // When DEBUG logging is enabled, do not mask request/response logs
         if (Logger::isDebugLoggingEnabled()) {
             return CentralMasker::getUnmaskedHeaders($headers);
         }

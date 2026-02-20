@@ -143,8 +143,7 @@ Tests use the configuration from `example/config.php`. Make sure it contains:
 return [
     'access_key' => 'your_access_key_here',
     'access_secret' => 'your_access_secret_here',
-    'api_url' => 'https://apipp.nimbbl.tech/api/', // or production URL
-    'api_version' => 'v3',
+   'api_host' => 'https://apipp.nimbbl.tech', // or production host
     // Note: Webhook verification uses access_secret automatically
     'enable_logging' => true,
     'log_file' => __DIR__ . '/../logs/nimbbl_debug.log',

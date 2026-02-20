@@ -21,8 +21,7 @@ Edit `example/config.php` and set:
 
 - `access_key` - Your Nimbbl API access key
 - `access_secret` - Your Nimbbl API access secret
-- `api_url` - Base URL (e.g., `https://api.nimbbl.tech/api/`)
-- `api_version` - API version (e.g., `v3`)
+- `api_host` - API host (e.g., `https://api.nimbbl.tech`)
 
 ### Step 3: Run Examples
 

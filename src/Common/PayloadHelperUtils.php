@@ -8,7 +8,6 @@ use Nimbbl\Api\Log\Logger;
 
 /**
  * Generic helper to unwrap, decrypt, and sanitize webhook/callback payloads.
- * Aligned with .NET SDK PayloadHelperUtils.cs
  */
 class PayloadHelperUtils
 {
@@ -45,12 +44,19 @@ class PayloadHelperUtils
             $processed = $decoded;
             if (!empty($encryptedResponse)) {
                 $logger->info("PayloadHelperUtils: decrypting " . JsonKeys::ENCRYPTED_RESPONSE . ".");
-                $enc = new \Nimbbl\Api\Encryption($secret);
+                $enc = new \Nimbbl\Api\Common\Encryption($secret);
                 $decrypted = $enc->decrypt($encryptedResponse, true);
-                $processed = json_decode($decrypted, true);
-                if (json_last_error() !== JSON_ERROR_NONE) {
-                    throw new \Exception("Invalid JSON after decryption: " . json_last_error_msg());
+                $processed = is_array($decrypted) ? $decrypted : json_decode($decrypted, true);
+                if (!is_array($processed)) {
+                    $rawPreview = is_string($decrypted) ? substr($decrypted, 0, 500) : gettype($decrypted);
+                    $rawLen = is_string($decrypted) ? strlen($decrypted) : 0;
+                    $logger->error("PayloadHelperUtils: after decryption parse failed. raw_type=" . gettype($decrypted) . " raw_len=" . $rawLen . " raw_preview=" . (is_string($rawPreview) ? $rawPreview : $rawPreview));
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        throw new \Exception("Invalid JSON after decryption: " . json_last_error_msg());
+                    }
+                    throw new \Exception("Decryption did not produce a JSON object.");
                 }
+                $logger->info("PayloadHelperUtils: after decryption top-level keys=" . implode(',', array_keys($processed)) . " full=" . json_encode($processed, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
             } elseif (is_array($decoded) && isset($decoded[JsonKeys::CALLBACK]) && is_array($decoded[JsonKeys::CALLBACK])) {
                 $processed = $decoded[JsonKeys::CALLBACK];
             }
@@ -65,6 +71,9 @@ class PayloadHelperUtils
                 if (isset($processed[JsonKeys::PAYLOAD]) && is_array($processed[JsonKeys::PAYLOAD])) {
                     $logger->debug("PayloadHelperUtils: detected " . JsonKeys::GLOBAL_HANDLE_CHECKOUT_RESPONSE . ", unwrapping nested " . JsonKeys::PAYLOAD . ".");
                     $processed = $processed[JsonKeys::PAYLOAD];
+                } elseif (isset($processed['data']) && is_array($processed['data'])) {
+                    $logger->debug("PayloadHelperUtils: detected " . JsonKeys::GLOBAL_HANDLE_CHECKOUT_RESPONSE . ", unwrapping nested data.");
+                    $processed = $processed['data'];
                 }
             }
 
@@ -72,6 +81,8 @@ class PayloadHelperUtils
         } catch (\Exception $ex) {
             $failMsg = ErrorMessages::MESSAGE_WEBHOOK_PARSE_ERROR . ": " . $ex->getMessage();
             $logger->error($failMsg);
+            $payloadPreview = is_string($payload) ? substr($payload, 0, 400) : gettype($payload);
+            $logger->error("PayloadHelperUtils: parse failed. incoming_payload_preview=" . (is_string($payloadPreview) ? $payloadPreview : $payloadPreview) . " incoming_len=" . (is_string($payload) ? strlen($payload) : 0));
             throw $ex;
         }
     }
@@ -96,15 +107,16 @@ class PayloadHelperUtils
             $decoded = base64_decode($response, true);
             if ($decoded !== false) {
                 // Successfully decoded as base64, now parse as JSON
+                $logger->debug("ParseResponse: Input is base64 encoded. Decoded length=" . strlen($decoded) . " preview=" . substr($decoded, 0, 200));
                 return self::parse($decoded, $secret);
             } else {
                 // If base64 decoding fails, treat the input as a regular JSON string
-                $logger->debug("ParseResponse: Input is not base64 encoded, treating as regular JSON string");
+                $logger->debug("ParseResponse: Input is not base64 encoded, treating as regular JSON string. Length=" . strlen($response) . " preview=" . substr($response, 0, 200));
                 return self::parse($response, $secret);
             }
         } catch (\Exception $ex) {
             // If base64 decode succeeded but JSON parse failed, try as direct JSON
-            $logger->debug("ParseResponse: Base64 decode succeeded but parse failed, trying as direct JSON");
+            $logger->debug("ParseResponse: Base64 decode succeeded but parse failed, trying as direct JSON. Length=" . strlen($response) . " preview=" . substr($response, 0, 200));
             return self::parse($response, $secret);
         }
     }

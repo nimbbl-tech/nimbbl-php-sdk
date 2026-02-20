@@ -93,6 +93,8 @@ class JsonKeys
     const STATUS = 'status';
     const REFUND_STATUS = 'refund_status';
     const REFUND_AMOUNT = 'refund_amount';
+    const REFUND_DETAILS = 'refund_details';
+    const REFUNDABLE_CURRENCY = 'refundable_currency';
     const EVENT_TYPE = 'event_type';
     const ORDER = 'order';
     const TRANSACTION = 'transaction';

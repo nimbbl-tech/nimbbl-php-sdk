@@ -1,7 +1,6 @@
 <?php
 /**
  * Utility class for loading environment variables from .env files
- * Match .NET SDK: EnvLoader.cs
  */
 
 class EnvLoader
@@ -14,8 +13,6 @@ class EnvLoader
      * Looks for .env in the current directory and parent directories up to 5 levels.
      * Only sets variables that are not already set in the environment.
      * This method is idempotent - it will only load the .env file once, even if called multiple times.
-     * 
-     * Match .NET SDK: EnvLoader.LoadEnvFile()
      */
     public static function loadEnvFile()
     {
@@ -48,7 +45,6 @@ class EnvLoader
 
     /**
      * Loads environment variables from a specific .env file path
-     * Match .NET SDK: EnvLoader.LoadEnvFile(string envFilePath)
      * 
      * @param string $envFilePath Path to the .env file
      */
@@ -89,7 +85,6 @@ class EnvLoader
 
     /**
      * Finds .env file by searching current directory and parent directories (up to 5 levels)
-     * Match .NET SDK: EnvLoader.FindEnvFile(string startDirectory)
      * 
      * @param string $startDirectory Directory to start searching from
      * @return string|null Path to .env file if found, null otherwise
