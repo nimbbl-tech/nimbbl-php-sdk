@@ -2,6 +2,7 @@ vendor
 composer.lock
 .vscode
 .phpunit.result.cache
+.DS_Store
 
 # Log files
 logs/*.log
