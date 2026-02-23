@@ -99,7 +99,7 @@ if (empty($secret)) {
 
 // Parse and unwrap the payload using PayloadHelperUtils (handles encryption, unwrapping, etc.)
 try {
-    $eventData = PayloadHelperUtils::parse($payload, $secret);
+    $eventData = PayloadHelperUtils::parseResponse($payload, $secret);
 } catch (Exception $e) {
     $logger->log("Webhook parse error: " . $e->getMessage(), Logger::LOG_ERROR, SdkConstants::COMPONENT_WEBHOOK);
     http_response_code(400);
