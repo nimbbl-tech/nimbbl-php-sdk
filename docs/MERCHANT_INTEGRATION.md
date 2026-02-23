@@ -1,28 +1,31 @@
 # Nimbbl PHP SDK - Merchant Integration (v3)
 
-This guide describes the end-to-end server-side integration using the Nimbbl PHP SDK with API v3 and signature version v3. It covers:
+This guide describes the end-to-end server-side integration using the Nimbbl PHP SDK with API v3. It covers:
 
 - Creating an order (v3)
-- Completing the integration: validating the payment response (Signature v3)
+- Validating payment response (signature verification)
+- Webhook handling (including encrypted payloads)
 - Processing refunds (v3)
+- Transaction enquiry (v3)
 
 Notes:
-- Always use API version v3.
-- Always validate with Signature v3 when present.
-- Ignore all endpoints/APIs named "fetch" during integration.
+
+- Always use API version v3 (base URL includes `/api/v3`).
+- Always verify webhook/callback signatures before fulfilling orders.
+- Ignore deprecated or "fetch" endpoints during integration.
 
 ## Integration Flow at a Glance
 
-1) Create order (server) → return token to frontend
-2) Customer pays via Nimbbl Standard Checkout (frontend)
-3) Nimbbl redirects to your callback URL and/or posts to your webhook (server)
-4) Verify Signature v3 (server) → fulfill order if valid
-5) Optional: Refunds (server)
-6) Optional: Enquiry/status checks (server)
+1. Create order (server) → return token to frontend.
+2. Customer pays via Nimbbl Standard Checkout (frontend).
+3. Nimbbl redirects to your callback URL and/or POSTs to your webhook (server).
+4. Parse payload (decrypt if needed), verify signature (server) → fulfill order if valid.
+5. Optional: Refunds (server).
+6. Optional: Transaction enquiry / status checks (server).
 
 ## Prerequisites
 
-- PHP 7.4+ recommended
+- PHP 7.4+
 - Composer
 - Nimbbl Access Key and Access Secret
 
@@ -34,30 +37,56 @@ composer require nimbbl/nimbbl-sdk
 
 ## Initialization
 
+Use `NimbblClient` with your credentials. The API base URL (third parameter) is **optional**. When omitted, the SDK uses the default production URL (`https://api.nimbbl.tech`). When provided, use the base URL up to the host (e.g. `https://api.nimbbl.tech`) and append `/api/v3` to form the full endpoint.
+
 ```php
-require __DIR__.'/../Nimbbl.php';
+require_once 'path/to/Nimbbl.php';  // or vendor/autoload.php if using Composer
 
-use Nimbbl\Api\NimbblApi;
+use Nimbbl\Api\RestClient\NimbblClient;
 
-$accessKey = 'your_access_key';
-$secretKey = 'your_access_secret';
-$baseUrl   = 'https://api.nimbbl.tech/api/'; // Production base
-$api       = new NimbblApi($accessKey, $secretKey, $baseUrl, 'v3');
+$accessKey    = 'your_access_key';
+$accessSecret = 'your_access_secret';
+$apiHost      = 'https://api.nimbbl.tech';  // optional: omit (pass null) to use default
+$apiEndpoint  = $apiHost . '/api/v3';
+
+$api = new NimbblClient(
+    $accessKey,
+    $accessSecret,
+    $apiEndpoint,  // optional: pass null to use default (https://api.nimbbl.tech)
+    null,          // log file path (optional)
+    false,         // encrypt_payload (optional, default false)
+    false,         // debug_logging (optional)
+    false          // override_log_filename (optional)
+);
+
+// Or use default production URL by omitting the endpoint:
+// $api = new NimbblClient($accessKey, $accessSecret, null, null, false, false, false);
+```
+
+Optional: enable request payload encryption and debug logging:
+
+```php
+$api = new NimbblClient(
+    $accessKey,
+    $accessSecret,
+    $apiEndpoint,
+    __DIR__ . '/logs/nimbbl.log',
+    true,   // encrypt_payload
+    true    // debug_logging
+);
 ```
 
 ### Token generation
 
-The SDK auto-generates a short-lived token for each server request. If you need it explicitly:
+The SDK auto-generates a short-lived merchant token when you call order, refund, or transaction APIs without passing a token. If you need the token explicitly (e.g. for multiple calls):
 
 ```php
-use Nimbbl\Api\NimbblRequest;
-
-$req = new NimbblRequest();
-$tokenArr = $req->generateToken();
-// $tokenArr example: [ 'token' => '...', 'expires_in' => 900 ]
+$tokenResponse = $api->auth()->generateToken();
+$merchantToken = $tokenResponse['token'];
+// Use $merchantToken when calling refunds()->initiateRefund() or transactions()->transactionEnquiry()
 ```
 
-All SDK methods use this under the hood and attach `Authorization: Bearer <token>` automatically.
+All order-creation and payment flows can omit the token; the SDK attaches `Authorization: Bearer <token>` automatically.
 
 ## Create Order (v3)
 
@@ -66,222 +95,189 @@ Endpoint: `POST /v3/create-order`
 Example:
 
 ```php
-use Nimbbl\Api\NimbblOrder;
+use Nimbbl\Api\RestClient\NimbblClient;
+
+$api = new NimbblClient($accessKey, $accessSecret, 'https://api.nimbbl.tech/api/v3');
 
 $orderData = [
-  'amount_before_tax' => 100.00,
-  'tax'               => 0.00,
-  'total_amount'      => 100.00,
-  'currency'          => 'INR',
-  'invoice_id'        => 'your-unique-invoice-id-001',
-  'user' => [
-    'email'        => 'customer@example.com',
-    'first_name'   => 'John',
-    'mobile_number'=> '9999999999'
-  ]
+    'amount_before_tax' => 100.00,
+    'tax'               => 0.00,
+    'total_amount'      => 100.00,
+    'currency'          => 'INR',
+    'invoice_id'        => 'your-unique-invoice-id-001',
+    'user' => [
+        'email'         => 'customer@example.com',
+        'first_name'    => 'John',
+        'mobile_number' => '9999999999',
+        'country_code'  => '+91'
+    ]
 ];
 
-$order = $api->order->create($orderData); // NimbblOrder instance
-
-// Access top-level fields if present
-$token = $order->token ?? ($order->attributes['token'] ?? null);
+$order = $api->orders()->createOrder($orderData);
 ```
 
-The response contains the payment token and order details. Render Nimbbl Standard Checkout on your frontend using the token.
+Response is an array. On success it contains the payment token and order details; on error it contains an `error` key:
 
-Request headers (SDK-managed):
-- `Authorization: Bearer <token>`
-- `Content-Type: application/json`
-- `User-Agent: Nimbbl/v1 PHPSDK/<sdk-version> PHP/<php-version>`
+```php
+if (!empty($order['error'])) {
+    // Handle error: $order['error']
+} else {
+    $token = $order['token'];  // Pass to frontend for Standard Checkout
+    $orderId = $order['order_id'] ?? $order['nimbbl_order_id'] ?? null;
+}
+```
 
 Common request body fields:
-- `amount_before_tax` (number, 2 decimals)
-- `tax` (number, 2 decimals)
-- `total_amount` (number, 2 decimals)
-- `currency` (string, e.g., "INR")
+
+- `amount_before_tax`, `tax`, `total_amount` (numbers, 2 decimals)
+- `currency` (e.g. `"INR"`)
 - `invoice_id` (string, unique per order)
-- `user` (object: `email`, `first_name`, `mobile_number`)
+- `user` (object: `email`, `first_name`, `last_name`, `mobile_number`, `country_code`)
 
-Common response fields:
-- `token` (string, used by frontend checkout)
-- `order` (object, may include `id`, `invoice_id`, amounts, etc.)
-- `error` (object), if present contains `nimbbl_error_code`, `message`, etc.
+Use the returned `token` in your frontend to open Nimbbl Standard Checkout.
 
-## Validating Payment Response (Signature v3)
+## Validating Payment Response (Callback / Webhook)
 
-On completion, Nimbbl sends transaction details to your backend (via redirect or webhook). Always verify the signature before fulfilling the order.
+On completion, Nimbbl sends transaction details to your backend (redirect callback or webhook). Always verify the signature before fulfilling the order.
 
-Signature v3 payload order:
+### Webhook (server-to-server POST)
 
-```
-invoice_id | nimbbl_transaction_id | transaction_amount | transaction_currency | status | transaction_type
-```
+Webhook payloads may be plain JSON or encrypted. Use the SDK to parse and verify:
 
-- Compute HMAC SHA256 of the above pipe-separated string using your Access Secret.
-- Compare with `transaction.signature` provided in the response.
+1. **Parse (and decrypt if needed)**  
+   `PayloadHelperUtils::parseResponse($rawPayload, $accessSecret)` returns the decoded event array.
 
-Example v3 signature string:
+2. **Verify signature**  
+   `SignatureVerifier::verifySignature($eventData, $accessSecret)` returns `['success' => true|false, 'message' => ...]`.
 
-```
-<invoice_id>|<nimbbl_transaction_id>|<amount>|<currency>|<status>|<transaction_type>
-```
-
-Using the SDK helper:
+Example webhook handler outline:
 
 ```php
-use Nimbbl\Api\NimbblUtil;
+use Nimbbl\Api\Common\PayloadHelperUtils;
+use Nimbbl\Api\Common\SignatureVerifier;
+use Nimbbl\Api\Common\JsonKeys;
 
-// Example payload structure you receive from Nimbbl callback/webhook
-$attributes = [
-  'order' => [
-    'invoice_id' => 'your-unique-invoice-id-001',
-  ],
-  'nimbbl_transaction_id' => 'o_XXXXXXXXXXXX',
-  'transaction' => [
-    'transaction_amount'   => '100.00',
-    'transaction_currency' => 'INR',
-    'status'               => 'success',
-    'transaction_type'     => 'payment',
-    'signature'            => 'received_signature_here',
-    'signature_version'    => 'v3',
-  ],
-];
-
-$util = new NimbblUtil();
-$isValid = $util->verifyPaymentSignature($attributes, 100.00);
-
-if ($isValid) {
-  // Mark order as paid, provision goods/services
-} else {
-  // Log and treat as invalid
-}
-```
-
-Important:
-- If `transaction.signature_version` is `v3`, the SDK constructs the v3 string automatically. Provide the full `$attributes` and the order amount you created.
-- Ensure amount formats use two decimals (e.g., 100.00).
-
-### Callback vs Webhook
-
-- Callback: Customer browser is redirected to your return URL with payment context. Use it to show UI; always re-verify on server.
-- Webhook: Server-to-server POST from Nimbbl to your endpoint with JSON body. Treat webhook as source of truth.
-
-Recommended:
-- Implement both. Use callback for UX, webhook for fulfillment.
-- Webhook must return HTTP 200 on success; otherwise Nimbbl may retry (respect idempotency).
-
-Minimal webhook handler outline:
-
-```php
-// pseudo-code
-// Read JSON body
 $payload = file_get_contents('php://input');
-$attributes = json_decode($payload, true);
+$secret  = $yourAccessSecret;
 
-// Verify signature v3
-$util = new Nimbbl\\Api\\NimbblUtil();
-$valid = $util->verifyPaymentSignature($attributes, /* expected total amount */ 100.00);
-
-if ($valid) {
-  // idempotency: check if invoice_id already processed
-  // fulfill order, persist transaction id, mark paid
-  http_response_code(200);
-  echo 'OK';
-} else {
-  // log and ignore
-  http_response_code(400);
+try {
+    $eventData = PayloadHelperUtils::parseResponse($payload, $secret);
+} catch (\Exception $e) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Parse error']);
+    exit;
 }
+
+$verifier = new SignatureVerifier();
+$result   = $verifier->verifySignature($eventData, $secret);
+
+if (!$result['success']) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Signature verification failed']);
+    exit;
+}
+
+$eventType = $eventData[JsonKeys::EVENT_TYPE] ?? null;
+// Handle: payment_success, payment_failed, refund_success, refund_failed, etc.
+// Implement idempotency (same webhook may be received multiple times).
+// Must return 200 within 15 seconds.
+
+http_response_code(200);
+echo json_encode(['status' => 'success', 'message' => 'Webhook processed']);
 ```
+
+Supported webhook events include: `payment_success`, `payment_failed`, `payment_reversing`, `payment_reversal_failed`, `payment_reversed`, `refund_success`, `refund_failed`, `refund_pending`.
+
+### Callback (redirect with payment context)
+
+For redirect/callback responses, use the same signature verification with the callback payload (e.g. after decoding query/body). The SDK provides:
+
+```php
+$verifier = new SignatureVerifier();
+$result   = $verifier->verifyCallbackSignature($callbackPayload, $secret);
+// $result['success'] and $result['message']
+```
+
+Recommendation: implement both callback (for UX) and webhook (for fulfillment). Treat webhook as source of truth; use callback to show status and always re-verify on the server.
 
 ## Processing Refunds (v3)
 
-- Initiate a refund by `POST /v3/refund`.
-- You can refund by `transaction_id` (and optionally specify an `amount` for partial refunds).
+Initiate a refund with the Refunds API. You can pass a merchant token or omit it (SDK will auto-generate).
 
 Example:
 
 ```php
-use Nimbbl\Api\NimbblRefund;
-
-$refundInput = [
-  'transaction_id' => 'o_XXXXXXXXXXXX',
-  // 'amount' => 50.00, // Optional for partial refund
+$refundData = [
+    'transaction_id' => 'o_XXXXXXXXXXXX',
+    // 'refund_amount' => 50.00,  // Optional partial refund
+    // 'comment' => 'Customer request',
+    // 'refund_request_id' => 'unique-id-for-idempotency'
 ];
 
-$refund = $api->refund->initiateRefund($refundInput); // NimbblRefund instance
-
-if (!empty($refund->error)) {
-  // Handle error
-} else {
-  // Persist refund details from $refund->attributes
-}
+$refund = $api->refunds()->initiateRefund($refundData);
 ```
 
-Notes:
-- Ignore deprecated or older "fetch" endpoints as per instruction.
-- For audit and troubleshooting, the SDK logs to a file and PHP error log. See `LOGGING_README.md`.
+You can use `invoice_id` instead of `transaction_id` where the API supports it. Response is an array; check for `$refund['error']` and enforce idempotency (e.g. with `refund_request_id`).
 
-Request body (typical):
-- `transaction_id` (string, paid transaction id)
-- `amount` (number, optional for partial refund)
+## Transaction Enquiry (v3)
 
-Response (typical):
-- Refund entity attributes (id, status, amounts)
-- Or `error` with `nimbbl_error_code`
+To confirm status (e.g. when callbacks/webhooks are delayed):
 
-Validation:
-- Ensure the refund amount ≤ captured amount and enforce idempotency on your side.
+```php
+$data = [
+    'invoice_id' => 'your-unique-invoice-id-001',
+    // or 'transaction_id' => 'o_XXXXXXXXXXXX'
+];
+
+$result = $api->transactions()->transactionEnquiry($data);
+```
+
+Use webhooks as source of truth; use enquiry to reconcile or when needed. Avoid aggressive polling.
 
 ## Error Handling
 
-- All API responses should be verified and errors handled gracefully.
-- On signature failure, do not fulfill the order and log the attempt.
-- Network or 5xx errors should be retried as per your policy.
+- Check for `error` in response arrays and handle non-2xx responses.
+- The SDK throws exceptions (e.g. `Nimbbl\Api\Exception\BadRequestException`, `AuthenticationException`) for API errors; catch and log appropriately.
+- On signature verification failure, do not fulfill the order; log the attempt.
+- Retry network or 5xx errors according to your policy.
 
-Standard error shape (typical):
+Typical error shape:
+
 ```json
 {
   "error": {
     "nimbbl_error_code": "BAD_REQUEST_ERROR",
-    "message": "..."
+    "nimbbl_merchant_message": "..."
   }
 }
 ```
 
-The SDK logs details and throws `Nimbbl\Api\NimbblError` for non-2xx responses when using low-level helpers.
+## Optional: Request payload encryption
+
+If your account uses encrypted request payloads, initialize the client with `encrypt_payload` set to `true`. The SDK will encrypt request bodies for create order, refund, transaction enquiry, and supported checkout utility APIs. Webhook responses can be encrypted; `PayloadHelperUtils::parseResponse()` decrypts them when you pass the access secret.
+
+## Logging
+
+The SDK logs requests/responses (with sensitive data masked unless debug logging is enabled). Configure a log file path in the client constructor. See `LOGGING.md` in the repo for details.
 
 ## Test Checklist
 
-- Create order returns a token.
-- Frontend completes payment and calls your backend callback.
-- Backend verifies signature v3 successfully for valid payments.
-- Refund initiation works and returns refund details.
-
-## Enquiry (Status Check)
-
-Use an enquiry endpoint to confirm the latest status if needed (e.g., when callbacks/webhooks are delayed). Example pattern with the SDK request helper:
-
-```php
-use Nimbbl\Api\NimbblRequest;
-
-$req = new NimbblRequest();
-$payload = [
-  'invoice_id' => 'your-unique-invoice-id-001',
-  // or 'transaction_id' => 'o_XXXXXXXXXXXX'
-];
-
-// Prefer v3 endpoint when available, e.g., 'v3/transaction-enquiry'
-$res = $req->universalRequest('POST', 'v3/transaction-enquiry', $payload);
-
-// Validate structure and act on status fields in $res
-```
-
-Guidelines:
-- Prefer webhooks for source-of-truth; use enquiry to reconcile.
-- Don’t poll aggressively—use backoff and only when necessary.
+- Create order returns a token; frontend can open Standard Checkout.
+- Callback and/or webhook received; parse (and decrypt if needed) and verify signature successfully.
+- Fulfillment only after signature success; idempotency applied.
+- Refund initiation works; response or error handled.
+- Transaction enquiry returns expected status when used.
 
 ## Production Tips
 
-- Store and mask credentials. Never log raw secrets.
-- Enforce HTTPS endpoints and verify certificates.
-- Implement idempotency on your server for callbacks and refunds.
+- Store credentials securely; never log raw secrets.
+- Use HTTPS for all endpoints and verify certificates.
+- Enforce idempotency for callbacks, webhooks, and refunds.
+- Return HTTP 200 for webhook within 15 seconds to avoid retries.
+
+## Further Documentation
+
+- **Examples:** `example/` in the SDK (order, refund, webhook-handler, etc.).
+- **Webhook example:** `example/webhook-handler.php` for a full parse → verify → event-handling flow.
+- **API docs:** [Nimbbl API Reference](https://nimbbl.biz/docs/category/api-reference/).
+- **Checkout integration:** [Standard Checkout – Completing integration](https://nimbbl.biz/docs/standard-checkout/completing-integration/keeping-system-updated/).
