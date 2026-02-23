@@ -2,6 +2,25 @@
 
 All notable changes to the Nimbbl PHP SDK are documented here. This release is the first of the current refactored SDK line.
 
+## [4.0.1] - 2026-02-23
+
+### Added
+- **Webhook & callback**: `PayloadHelperUtils::parseResponse()` to parse and decrypt webhook payloads (plain JSON or `encrypted_response`). `SignatureVerifier::verifySignature()` and `verifyCallbackSignature()` for payment, refund, and payment-link events.
+- **Optional request payload encryption**: When `NimbblClient` is constructed with `encrypt_payload` enabled, Order, Refund, Transaction, and Checkout Utilities (list banks/wallets) requests are encrypted via `EncryptedPayloadHelper`.
+- **Shared encryption helper**: `EncryptedPayloadHelper::preparePayload()` centralizes encrypted payload preparation for Order, Refund, Transaction, and CheckoutUtilities services.
+
+### Changed
+- **NimbblException**: All call sites updated to use correct constructor argument order `(message, errorCode, requestId, httpStatusCode, errorData, previous)` (fixes misassigned errorCode/httpStatusCode in services and Request).
+- **Request logging**: Caller context is resolved in a single place; `logInfoWithSdkCallerContext()` now uses `resolveSdkCallerContext()` (removed duplicated backtrace logic). Fallback for non-SDK callers preserved.
+- **MERCHANT_INTEGRATION.md**: Rewritten for current SDK — `NimbblClient`, `orders()->createOrder()`, `refunds()->initiateRefund()`, `transactions()->transactionEnquiry()`, webhook flow with `PayloadHelperUtils` and `SignatureVerifier`, optional API base URL (default production), base URL documented as host-only (e.g. `https://api.nimbbl.tech`) with `/api/v3` appended.
+- **.gitignore**: Added `example/config.php`, `logs/`, `*.code-workspace`, `PUBLISHING.md`, `publish-sdk.sh`, `.DS_Store` to keep local config and workspace files untracked.
+
+### Fixed
+- Encryption error exceptions in Order, Refund, Transaction, and CheckoutUtilities now pass the correct `errorCode` and `httpStatusCode` to `NimbblException` and attach the original exception as `previous`.
+- Request token/auth `NimbblException` calls now pass `requestId` as null where appropriate and use correct parameter order.
+
+---
+
 ## [4.0.0] - 2025-12-10
 
 ### Highlights
