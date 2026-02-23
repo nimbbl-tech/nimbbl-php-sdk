@@ -589,5 +589,5 @@ For support, email support@nimbbl.biz
 
 ---
 
-**Version**: 4.0.0  
-**Last Updated**: December 10, 2025
+**Version**: 4.0.1  
+**Last Updated**: February 23, 2026

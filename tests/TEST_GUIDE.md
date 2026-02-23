@@ -1,8 +1,8 @@
-# Nimbbl PHP SDK - Testing Guide (v4.0.0)
+# Nimbbl PHP SDK - Testing Guide (v4.0.1)
 
-This guide explains how to test all APIs in the Nimbbl PHP SDK v4.0.0.
+This guide explains how to test all APIs in the Nimbbl PHP SDK v4.0.1.
 
-## v4.0.0 Changes
+## v4.0.1 Changes
 
 The SDK has been restructured with the following changes:
 - **Client Class**: `Nimbbl\Api\Api` is replaced by `Nimbbl\Api\RestClient\NimbblClient`.

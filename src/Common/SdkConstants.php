@@ -6,7 +6,7 @@ class SdkConstants
 {
     // SDK identifiers
     const SDK_NAME = 'Nimbbl PHP SDK';
-    const SDK_VERSION = '4.0.0';
+    const SDK_VERSION = '4.0.1';
 
     // Signature Constants
     const SIGNATURE_VERSION_V3 = 'v3';
