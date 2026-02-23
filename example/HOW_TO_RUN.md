@@ -1,5 +1,136 @@
 # How to Run Sample App Examples
 
+## 🧪 Testing Team Guide (Local SDK vs Published SDK)
+
+Use this section when QA needs to validate the same scenarios against:
+
+- **Local SDK source** (`../nimbbl-php-sdk`) for pre-release testing
+- **Published SDK package** (Packagist/tagged version) for release validation
+
+### Workspace Prerequisites
+
+- `nimbbl-php-sdk/` and `nimbbl-php-sample-app/` do not need to be sibling folders
+- If they are in different locations, update the `repositories[0].url` path in `nimbbl-php-sample-app/composer.local.json` to point to your SDK folder
+- PHP and Composer installed
+- Sample app config created:
+
+Example `repositories[0].url` values in `composer.local.json`:
+
+- macOS: `/Users/<username>/Downloads/sdks/nimbbl-php-sdk`
+- Windows: `C:/Users/<username>/Downloads/sdks/nimbbl-php-sdk`
+
+```bash
+cd /path/to/nimbbl-php-sample-app
+cp config.php.example config.php
+```
+
+Update `config.php` with valid credentials before testing.
+
+### Test Mode A: Local SDK (path repository)
+
+This mode uses your local SDK code directly.
+
+**macOS/Linux:**
+
+```bash
+cd /path/to/nimbbl-php-sample-app
+cp composer.local.json composer.json
+rm -f composer.lock
+composer install
+```
+
+**Windows (PowerShell):**
+
+```powershell
+cd C:\path\to\nimbbl-php-sample-app
+Copy-Item composer.local.json composer.json -Force
+Remove-Item composer.lock -ErrorAction SilentlyContinue
+composer install
+```
+
+**Windows (cmd):**
+
+```cmd
+cd /d C:\path\to\nimbbl-php-sample-app
+copy /Y composer.local.json composer.json
+del /Q composer.lock 2>nul
+composer install
+```
+
+Expected behavior:
+
+- Composer resolves `nimbbl/nimbbl-sdk` from `../nimbbl-php-sdk`
+- Local code changes in SDK are reflected immediately (path + symlink setup)
+
+### Test Mode B: Published SDK (tagged/package version)
+
+This mode validates behavior exactly as consumers will get from the published package.
+
+**macOS/Linux:**
+
+```bash
+cd /path/to/nimbbl-php-sample-app
+cp composer.published.json composer.json
+rm -f composer.lock
+composer install
+```
+
+**Windows (PowerShell):**
+
+```powershell
+cd C:\path\to\nimbbl-php-sample-app
+Copy-Item composer.published.json composer.json -Force
+Remove-Item composer.lock -ErrorAction SilentlyContinue
+composer install
+```
+
+**Windows (cmd):**
+
+```cmd
+cd /d C:\path\to\nimbbl-php-sample-app
+copy /Y composer.published.json composer.json
+del /Q composer.lock 2>nul
+composer install
+```
+
+If you need to pin a specific release (example `4.0.1`):
+
+```bash
+composer require nimbbl/nimbbl-sdk:4.0.1 --no-interaction
+```
+
+### Verify Which SDK Is Active
+
+Run this in sample app root:
+
+```bash
+composer show nimbbl/nimbbl-sdk
+```
+
+Quick runtime check:
+
+```bash
+php -r "require 'vendor/autoload.php'; echo 'SDK Version: ' . \Nimbbl\Api\RestClient\NimbblClient::VERSION . PHP_EOL;"
+```
+
+### Recommended QA Flow
+
+1. Run all test cases in **Local SDK** mode
+2. Switch to **Published SDK** mode
+3. Run the same test cases again
+4. Compare outputs, HTTP status codes, signatures, and logs
+
+### Minimum Regression Checklist
+
+- Token generation
+- Create order
+- Payment callback parse + signature verification
+- Webhook signature verification
+- Refund initiate + status checks
+- Error handling paths (invalid key/signature/payload)
+
+---
+
 ## 🚀 Quick Start
 
 ### Step 1: Install Dependencies
