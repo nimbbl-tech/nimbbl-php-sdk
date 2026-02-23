@@ -2,11 +2,17 @@ vendor
 composer.lock
 .vscode
 .phpunit.result.cache
-.DS_Store
 
-# Local config and workspace
+# Log files
+logs/*.log
+*.log
+
+# Configuration files with sensitive credentials
 example/config.php
-logs/
+
+# IDE workspace files
 *.code-workspace
+
+# Publishing documentation
 PUBLISHING.md
 publish-sdk.sh
