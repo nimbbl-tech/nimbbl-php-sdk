@@ -83,7 +83,7 @@ class Logger
      * @param bool $overrideLogFilename Whether to override log filename (no date suffix)
      * @return string The resolved log file path
      */
-    public static function resolveLogFilePath($logFilePath, $overrideLogFilename = false)
+    private static function resolveLogFilePath($logFilePath, $overrideLogFilename = false)
     {
         if (!is_string($logFilePath) || trim($logFilePath) === '') {
             return $logFilePath;

@@ -6,13 +6,8 @@ use Nimbbl\Api\RestClient\Request;
 use Nimbbl\Api\RestClient\NimbblClient;
 use Nimbbl\Api\Common\ApiConstants;
 use Nimbbl\Api\Common\SdkConstants;
-use Nimbbl\Api\Common\ErrorMessages;
-use Nimbbl\Api\Common\HttpStatusCodes;
-use Nimbbl\Api\Common\JsonKeys;
-use Nimbbl\Api\Common\ErrorCodes;
+use Nimbbl\Api\Common\EncryptedPayloadHelper;
 use Nimbbl\Api\Log\Logger;
-use Nimbbl\Api\Common\Encryption;
-use Nimbbl\Api\Exception\NimbblException;
 
 /**
  * Nimbbl Checkout Utilities API Client
@@ -62,31 +57,8 @@ class CheckoutUtilities
     public function listBanks($attributes, $token = null)
     {
         $logger = Logger::getInstance();
-        $isEncryptEnabled = NimbblClient::isEncryptPayloadEnabled();
-        $logger->debug("listBanks - Encryption enabled: " . ($isEncryptEnabled ? "True" : "False"));
-
-        // Encrypt payload if encryption is enabled
-        if ($isEncryptEnabled) {
-            try {
-                $logger->debug("listBanks - Starting payload encryption");
-                $encryption = new Encryption(NimbblClient::getSecret());
-                $encryptedPayload = $encryption->encrypt($attributes);
-
-                // Wrap encrypted payload in the format expected by API
-                // The API accepts either a regular request or an encrypted payload
-                $attributes = [
-                    JsonKeys::ENCRYPTED_PAYLOAD => $encryptedPayload
-                ];
-
-                $logger->info("List banks payload encrypted successfully");
-            } catch (\Exception $ex) {
-                $logger->exception(sprintf(ErrorMessages::ENCRYPTION_ERROR_FORMAT, "list banks", $ex->getMessage()), $ex);
-                throw new NimbblException(sprintf(ErrorMessages::ENCRYPTION_ERROR_FORMAT, "list banks", $ex->getMessage()), HttpStatusCodes::INTERNAL_SERVER_ERROR, ErrorCodes::ENCRYPTION_ERROR);
-            }
-        } else {
-            $logger->debug("listBanks - Encryption disabled, sending plain payload");
-        }
-
+        $logger->debug("listBanks - Encryption enabled: " . (NimbblClient::isEncryptPayloadEnabled() ? "True" : "False"));
+        $attributes = EncryptedPayloadHelper::preparePayload($attributes, 'list banks');
         $request = new Request();
         return $request->request(ApiConstants::HTTP_POST, ApiConstants::CHECKOUT_LIST_BANKS, $attributes, $token, SdkConstants::COMPONENT_CHECKOUT_UTILITIES);
     }
@@ -101,31 +73,8 @@ class CheckoutUtilities
     public function listWallets($attributes, $token = null)
     {
         $logger = Logger::getInstance();
-        $isEncryptEnabled = NimbblClient::isEncryptPayloadEnabled();
-        $logger->debug("listWallets - Encryption enabled: " . ($isEncryptEnabled ? "True" : "False"));
-
-        // Encrypt payload if encryption is enabled
-        if ($isEncryptEnabled) {
-            try {
-                $logger->debug("listWallets - Starting payload encryption");
-                $encryption = new Encryption(NimbblClient::getSecret());
-                $encryptedPayload = $encryption->encrypt($attributes);
-
-                // Wrap encrypted payload in the format expected by API
-                // The API accepts either a regular request or an encrypted payload
-                $attributes = [
-                    JsonKeys::ENCRYPTED_PAYLOAD => $encryptedPayload
-                ];
-
-                $logger->info("List wallets payload encrypted successfully");
-            } catch (\Exception $ex) {
-                $logger->exception(sprintf(ErrorMessages::ENCRYPTION_ERROR_FORMAT, "list wallets", $ex->getMessage()), $ex);
-                throw new NimbblException(sprintf(ErrorMessages::ENCRYPTION_ERROR_FORMAT, "list wallets", $ex->getMessage()), HttpStatusCodes::INTERNAL_SERVER_ERROR, ErrorMessages::ERROR_CODE_SDK_EXCEPTION);
-            }
-        } else {
-            $logger->debug("listWallets - Encryption disabled, sending plain payload");
-        }
-
+        $logger->debug("listWallets - Encryption enabled: " . (NimbblClient::isEncryptPayloadEnabled() ? "True" : "False"));
+        $attributes = EncryptedPayloadHelper::preparePayload($attributes, 'list wallets');
         $request = new Request();
         return $request->request(ApiConstants::HTTP_POST, ApiConstants::CHECKOUT_LIST_WALLETS, $attributes, $token, SdkConstants::COMPONENT_CHECKOUT_UTILITIES);
     }

@@ -12,14 +12,15 @@ use Nimbbl\Api\Log\Logger;
 class PayloadHelperUtils
 {
     /**
-     * Parses the raw callback or webhook payload, handling decryption and "payload" unwrapping internally.
-     * Use this before calling VerifySignature.
+     * Internal parser that unwraps and decrypts payload data.
+     *
+     * This method is intentionally private; external callers should use parseResponse().
      * 
      * @param string $payload The raw JSON payload string
      * @param string $secret The merchant's access secret key
      * @return array Processed array containing events attributes for verification
      */
-    public static function parse($payload, $secret)
+    private static function parseAndUnwrapPayload($payload, $secret)
     {
         $logger = Logger::getInstance();
         try {
@@ -88,8 +89,10 @@ class PayloadHelperUtils
     }
 
     /**
-     * Parses a payment response string, which can be either base64-encoded or a regular JSON string.
-     * Automatically detects the format and handles both cases.
+     * Public entry point for parsing callback/webhook payloads.
+     *
+     * Parses a payment response string, which can be either base64-encoded or a regular JSON string,
+     * then delegates to the internal parser for decryption and unwrapping.
      * 
      * @param string $response The base64 encoded JSON response, or a regular JSON string
      * @param string $secret The merchant's access secret key
@@ -108,16 +111,16 @@ class PayloadHelperUtils
             if ($decoded !== false) {
                 // Successfully decoded as base64, now parse as JSON
                 $logger->debug("ParseResponse: Input is base64 encoded. Decoded length=" . strlen($decoded) . " preview=" . substr($decoded, 0, 200));
-                return self::parse($decoded, $secret);
+                return self::parseAndUnwrapPayload($decoded, $secret);
             } else {
                 // If base64 decoding fails, treat the input as a regular JSON string
                 $logger->debug("ParseResponse: Input is not base64 encoded, treating as regular JSON string. Length=" . strlen($response) . " preview=" . substr($response, 0, 200));
-                return self::parse($response, $secret);
+                return self::parseAndUnwrapPayload($response, $secret);
             }
         } catch (\Exception $ex) {
             // If base64 decode succeeded but JSON parse failed, try as direct JSON
             $logger->debug("ParseResponse: Base64 decode succeeded but parse failed, trying as direct JSON. Length=" . strlen($response) . " preview=" . substr($response, 0, 200));
-            return self::parse($response, $secret);
+            return self::parseAndUnwrapPayload($response, $secret);
         }
     }
 }

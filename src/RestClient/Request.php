@@ -136,8 +136,8 @@ class Request
                         throw new NimbblException(
                             "Failed to auto-generate merchant token: token not found in response.",
                             ErrorCodes::AUTH_ERROR,
-                            HttpStatusCodes::UNAUTHORIZED,
                             null,
+                            HttpStatusCodes::UNAUTHORIZED,
                             []
                         );
                     }
@@ -332,7 +332,7 @@ class Request
      * Handles encrypted error responses
      * @param object $response The response object returned by Requests
      */
-    protected function checkErrors($response)
+    private function checkErrors($response)
     {
         $logger = Logger::getInstance();
         $body = $response->body;
@@ -383,7 +383,7 @@ class Request
         }
     }
 
-    protected function processError($body, $httpStatusCode, $response)
+    private function processError($body, $httpStatusCode, $response)
     {
         $logger = Logger::getInstance();
         // Extract error information
@@ -414,7 +414,7 @@ class Request
      * @return void
      * @throws NimbblException
      */
-    protected function handleErrorResponse($response, $requestId = null, $errorCode = null, $message = null, $errorData = [])
+    private function handleErrorResponse($response, $requestId = null, $errorCode = null, $message = null, $errorData = [])
     {
         $message = $message ?? ErrorMessages::MESSAGE_API_REQUEST_FAILED;
         $httpStatusCode = $response->status_code;
@@ -445,7 +445,7 @@ class Request
         }
     }
 
-    protected function throwServerError($body, $httpStatusCode)
+    private function throwServerError($body, $httpStatusCode)
     {
         $description = "The server did not send back a well-formed response. Server response: $body";
         $logger = Logger::getInstance();
@@ -471,14 +471,14 @@ class Request
         return $headers;
     }
 
-    protected function constructUa()
+    private function constructUa()
     {
         $ua = 'Nimbbl/PHPSDK/' . NimbblClient::VERSION . ' PHP/' . phpversion();
         $ua .= ' ' . $this->getAppDetailsUa();
         return $ua;
     }
 
-    protected function getAppDetailsUa()
+    private function getAppDetailsUa()
     {
         $appsDetails = NimbblClient::$appsDetails;
         $appsDetailsUa = '';
@@ -607,6 +607,7 @@ class Request
                 throw new NimbblException(
                     $errorMsg,
                     $tokenResponseBody[JsonKeys::ERROR][JsonKeys::ERROR_CODE] ?? ErrorCodes::AUTH_ERROR,
+                    null,
                     (int) $tokenResponse->status_code
                 );
             }
@@ -618,7 +619,7 @@ class Request
                     : 'HTTP ' . $tokenResponse->status_code . ' - ' . ($tokenResponse->body ?: 'Empty response');
 
                 $logger->error("Authentication failed: HTTP {$tokenResponse->status_code} - {$errorMessage}");
-                throw new NimbblException($errorMessage, 'HTTP_' . $tokenResponse->status_code, (int) $tokenResponse->status_code);
+                throw new NimbblException($errorMessage, 'HTTP_' . $tokenResponse->status_code, null, (int) $tokenResponse->status_code);
             }
 
             // Cache the token if present in response
@@ -687,83 +688,18 @@ class Request
 
     /**
      * Log INFO messages for API calls.
-     * 
+     *
      * @param string $message Log message
      * @param string $component Component name
      * @return void
      */
     private function logInfoWithSdkCallerContext($message, $component = SdkConstants::COMPONENT_REQUEST)
     {
-
-        // Prefer SDK caller (e.g., Auth.php/Order.php) instead of merchant app file (e.g., public/index.php)
-        $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 24);
-        $caller = [];
-        $requestFile = basename(__FILE__);
-        $skipFunctions = [
-            'logInfoWithSdkCallerContext',
-            'resolveSdkCallerContext',
-            'getHttpStatusText',
-            'getRequestHeaders',
-            'maskSensitiveInText',
-            'maskSensitiveInHeaders',
-            'maskSensitiveInArray',
-        ];
-        $sdkSrcDir = realpath(dirname(__FILE__, 2)); // .../src
-
-        for ($i = 0; $i < count($backtrace); $i++) {
-            $frame = $backtrace[$i];
-            $filePath = $frame['file'] ?? null;
-            $file = $filePath ? basename($filePath) : null;
-            $fn = $frame['function'] ?? '';
-
-            if ($file && $file === $requestFile) {
-                continue;
-            }
-
-            // Check if file is in SDK src directory first
-            if ($sdkSrcDir && $filePath) {
-                $real = realpath($filePath);
-                if ($real && strpos($real, $sdkSrcDir . DIRECTORY_SEPARATOR) === 0) {
-                    // Found an SDK file - get the enclosing method from the next frame
-                    $caller = $frame;
-                    // The next frame's function is the enclosing method
-                    if (isset($backtrace[$i + 1])) {
-                        $nextFrame = $backtrace[$i + 1];
-                        $caller['function'] = $nextFrame['function'] ?? $fn;
-                    }
-                    break;
-                }
-            }
-
-            // Only skip functions for non-SDK files
-            if ($fn !== '' && in_array($fn, $skipFunctions, true)) {
-                continue;
-            }
-        }
-
-        // Fallback: first non-Request.php frame
-        if (empty($caller)) {
-            foreach ($backtrace as $frame) {
-                $filePath = $frame['file'] ?? null;
-                $file = $filePath ? basename($filePath) : null;
-                $fn = $frame['function'] ?? '';
-                if ($file && $file !== $requestFile && ($fn === '' || !in_array($fn, $skipFunctions, true))) {
-                    $caller = $frame;
-                    break;
-                }
-            }
-        }
-        // Fallbacks keep output consistent even if backtrace lacks file/line
-        $module = isset($caller['file']) ? basename($caller['file']) : ($component ?? 'unknown');
-        $line = $caller['line'] ?? 0;
-        $function = $caller['function'] ?? '-';
-
-        // Use the SDK Logger so formatting + file/stdout behavior stays consistent.
-        // Pass caller info explicitly (module/line/function) for consistent logs.
+        $callerInfo = $this->resolveSdkCallerContext($component);
         try {
             $logFile = NimbblClient::getLogFile();
             $logger = Logger::getInstance($logFile);
-            $logger->log($message, Logger::LOG_INFO, $module, $line, $function);
+            $logger->log($message, Logger::LOG_INFO, $callerInfo['module'], $callerInfo['line'], $callerInfo['function']);
         } catch (\Exception $e) {
             // Ignore logger errors
         }
@@ -820,10 +756,22 @@ class Request
             }
         }
 
+        // Fallback: first non-Request.php frame
+        $caller = [];
+        foreach ($backtrace as $frame) {
+            $filePath = $frame['file'] ?? null;
+            $file = $filePath ? basename($filePath) : null;
+            $fn = $frame['function'] ?? '';
+            if ($file && $file !== $requestFile && ($fn === '' || !in_array($fn, $skipFunctions, true))) {
+                $caller = $frame;
+                break;
+            }
+        }
+
         return [
-            'module' => $component ?? 'unknown',
-            'line' => 0,
-            'function' => '-',
+            'module' => isset($caller['file']) ? basename($caller['file']) : ($component ?? 'unknown'),
+            'line' => $caller['line'] ?? 0,
+            'function' => $caller['function'] ?? '-',
         ];
     }
 

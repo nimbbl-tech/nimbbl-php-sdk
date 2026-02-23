@@ -38,7 +38,7 @@ final class PayloadHelperUtilsTest extends TestCase
             'amount' => 100.00
         ]);
 
-        $result = PayloadHelperUtils::parse($payload, $this->testSecret);
+        $result = PayloadHelperUtils::parseResponse($payload, $this->testSecret);
 
         $this->assertIsArray($result);
         $this->assertEquals('payment_success', $result['event_type']);
@@ -63,7 +63,7 @@ final class PayloadHelperUtilsTest extends TestCase
             'encrypted_response' => $encrypted
         ]);
 
-        $result = PayloadHelperUtils::parse($payload, $this->testSecret);
+        $result = PayloadHelperUtils::parseResponse($payload, $this->testSecret);
 
         $this->assertIsArray($result);
         $this->assertEquals('payment_success', $result['event_type']);
@@ -89,7 +89,7 @@ final class PayloadHelperUtilsTest extends TestCase
             ]
         ]);
 
-        $result = PayloadHelperUtils::parse($payload, $this->testSecret);
+        $result = PayloadHelperUtils::parseResponse($payload, $this->testSecret);
 
         $this->assertEquals('refund_success', $result['event_type']);
         $this->assertEquals('ref_123', $result['refund_id']);
@@ -114,7 +114,7 @@ final class PayloadHelperUtilsTest extends TestCase
             ]
         ]);
 
-        $result = PayloadHelperUtils::parse($payload, $this->testSecret);
+        $result = PayloadHelperUtils::parseResponse($payload, $this->testSecret);
 
         $this->assertEquals('payment_failed', $result['event_type']);
         $this->assertEquals('ord_fail', $result['order_id']);
@@ -137,7 +137,7 @@ final class PayloadHelperUtilsTest extends TestCase
             'payload' => $actualData
         ]);
 
-        $result = PayloadHelperUtils::parse($payload, $this->testSecret);
+        $result = PayloadHelperUtils::parseResponse($payload, $this->testSecret);
 
         // Should unwrap the nested payload
         $this->assertIsArray($result);
@@ -160,7 +160,7 @@ final class PayloadHelperUtilsTest extends TestCase
             'data' => $actualData
         ]);
 
-        $result = PayloadHelperUtils::parse($payload, $this->testSecret);
+        $result = PayloadHelperUtils::parseResponse($payload, $this->testSecret);
 
         $this->assertEquals('ord_checkout2', $result['order_id']);
         $this->assertEquals(750.75, $result['amount']);
@@ -253,7 +253,7 @@ final class PayloadHelperUtilsTest extends TestCase
     public function testParseInvalidJsonThrows(): void
     {
         $this->expectException(\Exception::class);
-        PayloadHelperUtils::parse('{invalid json}', $this->testSecret);
+        PayloadHelperUtils::parseResponse('{invalid json}', $this->testSecret);
     }
 
     /**
@@ -269,7 +269,7 @@ final class PayloadHelperUtilsTest extends TestCase
         ]);
 
         $this->expectException(\Exception::class);
-        PayloadHelperUtils::parse($payload, 'access_secret_wrong_key');
+        PayloadHelperUtils::parseResponse($payload, 'access_secret_wrong_key');
     }
 
     /**
@@ -287,7 +287,7 @@ final class PayloadHelperUtilsTest extends TestCase
             'callback' => $callbackData
         ]);
 
-        $result = PayloadHelperUtils::parse($payload, $this->testSecret);
+        $result = PayloadHelperUtils::parseResponse($payload, $this->testSecret);
 
         $this->assertEquals('payment_success', $result['event_type']);
         $this->assertEquals('ord_callback', $result['order_id']);
@@ -319,7 +319,7 @@ final class PayloadHelperUtilsTest extends TestCase
             'encrypted_response' => $encrypted
         ]);
 
-        $result = PayloadHelperUtils::parse($payload, $this->testSecret);
+        $result = PayloadHelperUtils::parseResponse($payload, $this->testSecret);
 
         $this->assertEquals('payment_success', $result['event_type']);
         $this->assertEquals('ord_complex', $result['order']['order_id']);
@@ -347,7 +347,7 @@ final class PayloadHelperUtilsTest extends TestCase
             'encrypted_response' => $encrypted
         ]);
 
-        $result = PayloadHelperUtils::parse($payload, $this->testSecret);
+        $result = PayloadHelperUtils::parseResponse($payload, $this->testSecret);
 
         $this->assertIsString($result['string_value']);
         $this->assertIsInt($result['int_value']);
@@ -375,7 +375,7 @@ final class PayloadHelperUtilsTest extends TestCase
             'encrypted_response' => $encrypted
         ], JSON_UNESCAPED_UNICODE);
 
-        $result = PayloadHelperUtils::parse($payload, $this->testSecret);
+        $result = PayloadHelperUtils::parseResponse($payload, $this->testSecret);
 
         $this->assertEquals('José García', $result['customer_name']);
         $this->assertEquals('北京市朝阳区', $result['address']);
@@ -401,7 +401,7 @@ final class PayloadHelperUtilsTest extends TestCase
             'encrypted_response' => $encrypted
         ]);
 
-        $result = PayloadHelperUtils::parse($payload, $this->testSecret);
+        $result = PayloadHelperUtils::parseResponse($payload, $this->testSecret);
 
         $this->assertEquals('bulk_payment', $result['event_type']);
         $this->assertEquals(100, count($result['transactions']));
@@ -440,7 +440,7 @@ final class PayloadHelperUtilsTest extends TestCase
             'encrypted_response' => $encrypted
         ]);
 
-        $result = PayloadHelperUtils::parse($payload, $this->testSecret);
+        $result = PayloadHelperUtils::parseResponse($payload, $this->testSecret);
 
         $this->assertEquals('webhook_test', $result['event_type']);
         $this->assertIsString($result['payload']); // Should be unparsed string
@@ -463,7 +463,7 @@ final class PayloadHelperUtilsTest extends TestCase
 
         $payload = json_encode($payloadData);
 
-        $result = PayloadHelperUtils::parse($payload, $this->testSecret);
+        $result = PayloadHelperUtils::parseResponse($payload, $this->testSecret);
 
         $this->assertEquals('payment_success', $result['event_type']);
         $this->assertIsArray($result['meta']);
@@ -496,7 +496,7 @@ final class PayloadHelperUtilsTest extends TestCase
             // Note: No event_type field
         ]);
 
-        $result = PayloadHelperUtils::parse($payload, $this->testSecret);
+        $result = PayloadHelperUtils::parseResponse($payload, $this->testSecret);
 
         $this->assertIsArray($result);
         $this->assertArrayNotHasKey('event_type', $result);
