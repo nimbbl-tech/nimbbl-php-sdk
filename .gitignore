@@ -2,3 +2,11 @@ vendor
 composer.lock
 .vscode
 .phpunit.result.cache
+.DS_Store
+
+# Local config and workspace
+example/config.php
+logs/
+*.code-workspace
+PUBLISHING.md
+publish-sdk.sh
