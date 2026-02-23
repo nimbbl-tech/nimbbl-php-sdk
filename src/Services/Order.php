@@ -7,7 +7,6 @@ use Nimbbl\Api\RestClient\NimbblClient;
 use Nimbbl\Api\Common\ApiConstants;
 use Nimbbl\Api\Common\SdkConstants;
 use Nimbbl\Api\Common\EncryptedPayloadHelper;
-use Nimbbl\Api\Common\ErrorMessages;
 use Nimbbl\Api\Common\JsonKeys;
 use Nimbbl\Api\Log\Logger;
 
@@ -61,23 +60,6 @@ class Order
     {
         $request = new Request();
         return $request->request(ApiConstants::HTTP_GET, ApiConstants::ORDER_GET, [JsonKeys::INVOICE_ID => $invoiceId], $token, SdkConstants::COMPONENT_ORDER);
-    }
-
-    /**
-     * Update order (not supported by Nimbbl API)
-     * Orders cannot be modified after creation
-     * 
-     * @param array|null $attributes
-     * @return array Structured error response indicating unsupported operation
-     */
-    public function updateOrder($attributes = null)
-    {
-        return [
-            JsonKeys::ERROR => [
-                JsonKeys::ERROR_CODE => ErrorMessages::ERROR_CODE_UNSUPPORTED_OPERATION,
-                JsonKeys::ERROR_MERCHANT_MESSAGE => ErrorMessages::UNSUPPORTED_OPERATION_ORDER_MODIFY
-            ]
-        ];
     }
 
 }
