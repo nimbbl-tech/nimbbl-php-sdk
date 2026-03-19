@@ -21,6 +21,7 @@ class CentralMasker
         JsonKeys::ACCESS_KEY,
         JsonKeys::ACCESS_SECRET,
             // Authentication tokens
+        JsonKeys::TOKEN,
         JsonKeys::REFRESH_TOKEN,
             // Names
         JsonKeys::FIRST_NAME,
@@ -259,10 +260,10 @@ class CentralMasker
     {
         if (empty($value))
             return $value;
-        if (strlen($value) <= 12)
+        if (strlen($value) <= 10)
             return str_repeat('*', strlen($value));
-        // Show first 5 and last 7 characters for tokens
-        return substr($value, 0, 5) . "***********" . substr($value, -7);
+        // Standard token masking: show first 6 and last 4 characters
+        return substr($value, 0, 6) . "**********" . substr($value, -4);
     }
 
     private static function maskAccessKey($value)

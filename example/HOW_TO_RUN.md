@@ -305,6 +305,28 @@ php example/index.php
 
 This runs multiple examples in sequence (legacy method).
 
+## ✅ Running Tests
+
+Use the SDK root for test commands.
+
+```bash
+cd /path/to/nimbbl-php-sdk
+
+# Recommended: unit/offline-safe suite
+vendor/bin/phpunit -c phpunit.xml.dist
+```
+
+Optional integration scripts (require valid credentials and API/network access):
+
+```bash
+php tests/AddressTest.php
+php tests/PaymentTest.php
+php tests/PaymentLinkTest.php
+php tests/CheckoutUtilitiesTest.php
+php tests/TransactionStatusTest.php
+php tests/run-all-tests.php
+```
+
 ## 📋 Example File Structure
 
 All example files follow a consistent structure:

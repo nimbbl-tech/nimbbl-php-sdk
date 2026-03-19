@@ -158,7 +158,7 @@ function createOrderSafely($api, $orderData)
         return ['success' => true, 'order' => $order];
     } catch (AuthenticationException $e) {
         // Log authentication error
-        Logger::getInstance()->log("Authentication failed: " . $e->getMessage(), Logger::LOG_ERROR, SdkConstants::COMPONENT_REQUEST);
+        Logger::getInstance()->error("Authentication failed: " . $e->getMessage());
         return [
             'success' => false,
             'error' => 'Authentication failed. Please check your credentials.',
@@ -167,7 +167,7 @@ function createOrderSafely($api, $orderData)
         ];
     } catch (BadRequestException $e) {
         // Log validation error
-        Logger::getInstance()->log("Bad request: " . $e->getMessage(), Logger::LOG_ERROR, SdkConstants::COMPONENT_REQUEST);
+        Logger::getInstance()->error("Bad request: " . $e->getMessage());
         return [
             'success' => false,
             'error' => 'Invalid request. Please check your input data.',
@@ -177,7 +177,7 @@ function createOrderSafely($api, $orderData)
         ];
     } catch (RateLimitException $e) {
         // Log rate limit error
-        Logger::getInstance()->log("Rate limit exceeded: " . $e->getMessage(), Logger::LOG_WARNING, SdkConstants::COMPONENT_REQUEST);
+        Logger::getInstance()->warning("Rate limit exceeded: " . $e->getMessage());
         return [
             'success' => false,
             'error' => 'Too many requests. Please try again later.',
@@ -186,7 +186,7 @@ function createOrderSafely($api, $orderData)
         ];
     } catch (ServerException $e) {
         // Log server error
-        Logger::getInstance()->log("Server error: " . $e->getMessage(), Logger::LOG_ERROR, SdkConstants::COMPONENT_REQUEST);
+        Logger::getInstance()->error("Server error: " . $e->getMessage());
         return [
             'success' => false,
             'error' => 'Server error. Please try again later.',
@@ -195,7 +195,7 @@ function createOrderSafely($api, $orderData)
         ];
     } catch (NimbblException $e) {
         // Log general Nimbbl error
-        Logger::getInstance()->log("Nimbbl error: " . $e->getMessage(), Logger::LOG_ERROR, SdkConstants::COMPONENT_REQUEST);
+        Logger::getInstance()->error("Nimbbl error: " . $e->getMessage());
         return [
             'success' => false,
             'error' => $e->getMessage(),
@@ -205,7 +205,7 @@ function createOrderSafely($api, $orderData)
         ];
     } catch (\Exception $e) {
         // Log unexpected error
-        Logger::getInstance()->log("Unexpected error: " . $e->getMessage(), Logger::LOG_ERROR, SdkConstants::COMPONENT_REQUEST);
+        Logger::getInstance()->error("Unexpected error: " . $e->getMessage());
         return [
             'success' => false,
             'error' => 'An unexpected error occurred.',

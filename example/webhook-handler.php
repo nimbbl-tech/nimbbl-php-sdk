@@ -77,7 +77,7 @@ $logger = Logger::getInstance($config["log_file"] ?? null);
 $payload = file_get_contents('php://input');
 
 if (empty($payload)) {
-    $logger->log("Webhook payload is empty", Logger::LOG_ERROR, SdkConstants::COMPONENT_WEBHOOK);
+    $logger->error("Webhook payload is empty");
     http_response_code(400);
     header('Content-Type: application/json');
     echo json_encode(['error' => 'Webhook payload is empty'], JSON_PRETTY_PRINT);
@@ -85,12 +85,12 @@ if (empty($payload)) {
 }
 
 // Log incoming webhook
-$logger->log("Webhook received. Payload length: " . strlen($payload), Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
+$logger->info("Webhook received. Payload length: " . strlen($payload));
 
 // Use access_secret for webhook signature verification
 $secret = $config['access_secret'] ?? NimbblClient::getSecret();
 if (empty($secret)) {
-    $logger->log("Webhook secret not configured", Logger::LOG_ERROR, SdkConstants::COMPONENT_WEBHOOK);
+    $logger->error("Webhook secret not configured");
     http_response_code(500);
     header('Content-Type: application/json');
     echo json_encode(['error' => 'Webhook secret not configured'], JSON_PRETTY_PRINT);
@@ -101,7 +101,7 @@ if (empty($secret)) {
 try {
     $eventData = PayloadHelperUtils::parseResponse($payload, $secret);
 } catch (Exception $e) {
-    $logger->log("Webhook parse error: " . $e->getMessage(), Logger::LOG_ERROR, SdkConstants::COMPONENT_WEBHOOK);
+    $logger->error("Webhook parse error: " . $e->getMessage());
     http_response_code(400);
     header('Content-Type: application/json');
     echo json_encode(['error' => 'Webhook parse error: ' . $e->getMessage()], JSON_PRETTY_PRINT);
@@ -113,7 +113,7 @@ $verifier = new SignatureVerifier();
 $result = $verifier->verifySignature($eventData, $secret);
 
 if (!$result['success']) {
-    $logger->log("Webhook signature verification failed: " . ($result['message'] ?? 'Unknown error'), Logger::LOG_ERROR, SdkConstants::COMPONENT_WEBHOOK);
+    $logger->error("Webhook signature verification failed: " . ($result['message'] ?? 'Unknown error'));
     http_response_code(401);
     header('Content-Type: application/json');
     echo json_encode(['error' => 'Webhook signature verification failed'], JSON_PRETTY_PRINT);
@@ -128,10 +128,10 @@ $nimbblOrderId = getOrderId($eventData);
 $nimbblTransactionId = getTransactionId($eventData);
 
 // Log webhook event
-$logger->log("Webhook event_type: " . ($eventType ?? 'N/A'), Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
-$logger->log("Nimbbl Order ID: " . ($nimbblOrderId ?? 'N/A'), Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
-$logger->log("Nimbbl Transaction ID: " . ($nimbblTransactionId ?? 'N/A'), Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
-$logger->log("Webhook payload: " . json_encode($eventData, JSON_PRETTY_PRINT), Logger::LOG_DEBUG, SdkConstants::COMPONENT_WEBHOOK);
+$logger->info("Webhook event_type: " . ($eventType ?? 'N/A'));
+$logger->info("Nimbbl Order ID: " . ($nimbblOrderId ?? 'N/A'));
+$logger->info("Nimbbl Transaction ID: " . ($nimbblTransactionId ?? 'N/A'));
+$logger->debug("Webhook payload: " . json_encode($eventData, JSON_PRETTY_PRINT));
 
 // Process webhook event using WebhookEvent model
 // IMPORTANT: Handle idempotency - same webhook may be received multiple times
@@ -168,7 +168,7 @@ try {
             handleRefundPending($eventData);
             break;
         default:
-            Logger::getInstance()->log("Unknown event type: " . ($eventType ?? 'N/A'), Logger::LOG_WARNING, SdkConstants::COMPONENT_WEBHOOK);
+            Logger::getInstance()->warning("Unknown event type: " . ($eventType ?? 'N/A'));
             break;
     }
 
@@ -180,7 +180,7 @@ try {
     exit;
 
 } catch (Exception $e) {
-    Logger::getInstance()->log("Error processing webhook: " . $e->getMessage(), Logger::LOG_ERROR, SdkConstants::COMPONENT_WEBHOOK);
+    Logger::getInstance()->error("Error processing webhook: " . $e->getMessage());
     http_response_code(500);
     header('Content-Type: application/json');
     echo json_encode(['error' => 'Processing error'], JSON_PRETTY_PRINT);
@@ -194,7 +194,7 @@ try {
  */
 function handleOrderCreated(array $event)
 {
-    Logger::getInstance()->log("Order created: " . (getOrderId($event) ?? 'N/A'), Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
+    Logger::getInstance()->info("Order created: " . (getOrderId($event) ?? 'N/A'));
 
     // Get order data from event
     $orderData = getOrderData($event);
@@ -206,7 +206,7 @@ function handleOrderCreated(array $event)
     if ($orderId) {
         // Process order creation
         // Example: Update order status in your database
-        Logger::getInstance()->log("Processing order creation for order_id: {$orderId}", Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
+        Logger::getInstance()->info("Processing order creation for order_id: {$orderId}");
     }
 }
 
@@ -217,7 +217,7 @@ function handleOrderCreated(array $event)
  */
 function handleOrderUpdated(array $event)
 {
-    Logger::getInstance()->log("Order updated: " . (getOrderId($event) ?? 'N/A'), Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
+    Logger::getInstance()->info("Order updated: " . (getOrderId($event) ?? 'N/A'));
 
     // Get order data from event
     $orderData = getOrderData($event);
@@ -233,7 +233,7 @@ function handleOrderUpdated(array $event)
  */
 function handlePaymentSuccess(array $event)
 {
-    Logger::getInstance()->log("Payment successful: " . (getTransactionId($event) ?? 'N/A'), Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
+    Logger::getInstance()->info("Payment successful: " . (getTransactionId($event) ?? 'N/A'));
 
     // Get transaction data from event
     $transactionData = getTransactionData($event);
@@ -250,7 +250,7 @@ function handlePaymentSuccess(array $event)
     $orderId = getOrderId($event);
 
     if ($transactionId && $orderId) {
-        Logger::getInstance()->log("Processing successful payment for transaction: {$transactionId}, order: {$orderId}", Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
+        Logger::getInstance()->info("Processing successful payment for transaction: {$transactionId}, order: {$orderId}");
 
             // Verify payment signature before processing
             if ($transactionData && $orderData) {
@@ -266,10 +266,10 @@ function handlePaymentSuccess(array $event)
                 $isValid = $result['success'];
 
                 if ($isValid) {
-                    Logger::getInstance()->log("Payment signature verified successfully", Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
+                    Logger::getInstance()->info("Payment signature verified successfully");
                     // Process payment - update database, send emails, etc.
                 } else {
-                    Logger::getInstance()->log("Payment signature verification failed", Logger::LOG_ERROR, SdkConstants::COMPONENT_WEBHOOK);
+                    Logger::getInstance()->error("Payment signature verification failed");
                 }
             }
     }
@@ -282,7 +282,7 @@ function handlePaymentSuccess(array $event)
  */
 function handlePaymentFailed(array $event)
 {
-    Logger::getInstance()->log("Payment failed: " . (getTransactionId($event) ?? 'N/A'), Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
+    Logger::getInstance()->info("Payment failed: " . (getTransactionId($event) ?? 'N/A'));
 
     // Get transaction data from event
     $transactionData = getTransactionData($event);
@@ -301,7 +301,7 @@ function handlePaymentFailed(array $event)
  */
 function handleRefundCreated(array $event)
 {
-    Logger::getInstance()->log("Refund created: " . (getRefundId($event) ?? 'N/A'), Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
+    Logger::getInstance()->info("Refund created: " . (getRefundId($event) ?? 'N/A'));
 
     // Get refund data from event
     $refundData = getRefundData($event);
@@ -317,7 +317,7 @@ function handleRefundCreated(array $event)
  */
 function handleRefundProcessed(array $event)
 {
-    Logger::getInstance()->log("Refund processed: " . (getRefundId($event) ?? 'N/A'), Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
+    Logger::getInstance()->info("Refund processed: " . (getRefundId($event) ?? 'N/A'));
 
     // Get refund data from event
     $refundData = getRefundData($event);
@@ -336,7 +336,7 @@ function handleRefundProcessed(array $event)
  */
 function handlePaymentReversing(array $event)
 {
-    Logger::getInstance()->log("Payment reversing: " . (getTransactionId($event) ?? 'N/A'), Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
+    Logger::getInstance()->info("Payment reversing: " . (getTransactionId($event) ?? 'N/A'));
 
     // Get transaction data from event
     $transactionData = getTransactionData($event);
@@ -352,7 +352,7 @@ function handlePaymentReversing(array $event)
  */
 function handlePaymentReversalFailed(array $event)
 {
-    Logger::getInstance()->log("Payment reversal failed: " . (getTransactionId($event) ?? 'N/A'), Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
+    Logger::getInstance()->info("Payment reversal failed: " . (getTransactionId($event) ?? 'N/A'));
 
     // Get transaction data from event
     $transactionData = getTransactionData($event);
@@ -368,7 +368,7 @@ function handlePaymentReversalFailed(array $event)
  */
 function handlePaymentReversed(array $event)
 {
-    Logger::getInstance()->log("Payment reversed: " . (getTransactionId($event) ?? 'N/A'), Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
+    Logger::getInstance()->info("Payment reversed: " . (getTransactionId($event) ?? 'N/A'));
 
     // Get transaction data from event
     $transactionData = getTransactionData($event);
@@ -387,7 +387,7 @@ function handlePaymentReversed(array $event)
  */
 function handleRefundSuccess(array $event)
 {
-    Logger::getInstance()->log("Refund successful: " . (getRefundId($event) ?? 'N/A'), Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
+    Logger::getInstance()->info("Refund successful: " . (getRefundId($event) ?? 'N/A'));
 
     // Get refund data from event
     $refundData = getRefundData($event);
@@ -406,7 +406,7 @@ function handleRefundSuccess(array $event)
  */
 function handleRefundFailed(array $event)
 {
-    Logger::getInstance()->log("Refund failed: " . (getRefundId($event) ?? 'N/A'), Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
+    Logger::getInstance()->info("Refund failed: " . (getRefundId($event) ?? 'N/A'));
 
     // Get refund data from event
     $refundData = getRefundData($event);
@@ -422,7 +422,7 @@ function handleRefundFailed(array $event)
  */
 function handleRefundPending(array $event)
 {
-    Logger::getInstance()->log("Refund pending: " . (getRefundId($event) ?? 'N/A'), Logger::LOG_INFO, SdkConstants::COMPONENT_WEBHOOK);
+    Logger::getInstance()->info("Refund pending: " . (getRefundId($event) ?? 'N/A'));
 
     // Get refund data from event
     $refundData = getRefundData($event);

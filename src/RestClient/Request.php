@@ -94,34 +94,9 @@ class Request
                 $headers['Content-Type'] = 'application/json; charset=utf-8';
             }
 
-            // Log request
+            // Log request after auth token is resolved (so JWT context is available)
             $maskedUrl = $this->maskSensitiveInText($url);
-            $requestLog = "{$methodUpper} {$maskedUrl}";
-
-            // Log request headers (with masking for sensitive values)
-            $maskedHeaders = $this->maskSensitiveInHeaders($headers);
-            // Hide internal SDK headers from log output.
-            unset($maskedHeaders['Nimbbl-API']);
-            $requestLog .= "\nRequest Headers: " . $this->formatJsonForLog($maskedHeaders);
-
-            if ($requestBody !== null) {
-                $maskedBody = CentralMasker::maskBody($requestBody);
-                $formattedBody = $maskedBody;
-                $requestLog .= "\nRequest Body: " . $formattedBody;
-            }
-            $this->logInfoWithSdkCallerContext($requestLog, $component);
-
-            // DEBUG: Raw JSON Request (before sending)
             $callerInfo = $this->resolveSdkCallerContext($component);
-            if ($requestBody !== null) {
-                $logger->log(
-                    "Raw JSON Request (before sending):\n" . $requestBody,
-                    Logger::LOG_DEBUG,
-                    $callerInfo['module'],
-                    $callerInfo['line'],
-                    $callerInfo['function']
-                );
-            }
 
             // Auto-generate merchant token if needed (for all non-auth requests)
             // Since nimbbl_api supports merchant tokens for all endpoints, we can auto-generate merchant tokens
@@ -160,16 +135,51 @@ class Request
                 $headers['Authorization'] = 'Bearer ' . trim($authToken);
             }
 
+            // Recompute context after potential auto token generation (authToken may now be set)
+            $ctx = $this->extractLogContextFromJwtAndRequest($authToken, $data, $requestBody);
+
+            $requestLog = "{$methodUpper} {$maskedUrl}";
+            $maskedHeaders = $this->maskSensitiveInHeaders($headers);
+            unset($maskedHeaders['Nimbbl-API']);
+            $requestLog .= "\nRequest Headers: " . $this->formatJsonForLog($maskedHeaders);
+            if ($requestBody !== null) {
+                $maskedBody = CentralMasker::maskBody($requestBody);
+                $requestLog .= "\nRequest Body: " . $maskedBody;
+            }
+            $requestUri = $this->extractUriPath($url);
+            $this->logInfoWithSdkCallerContext($requestLog, $component, $ctx['sub_merchant_id'] ?? null, $ctx['order_id'] ?? null, $requestUri, null);
+
+            if ($requestBody !== null) {
+                $maskedRawRequest = CentralMasker::maskBody($requestBody);
+                $logger->debug(
+                    "Raw JSON Request (before sending):\n" . $maskedRawRequest,
+                    null,
+                    [
+                        'sub_merchant_id' => $ctx['sub_merchant_id'] ?? null,
+                        'order_id' => $ctx['order_id'] ?? null,
+                        'apiTag' => $callerInfo['module'] ?? $component,
+                        'uri' => $requestUri,
+                    ]
+                );
+            }
+
             $response = Requests::request($url, $headers, $requestBody, $methodUpper, $options);
 
             // INFO: HTTP status line + response body
-            $statusText = $this->getHttpStatusText((int) $response->status_code);
-            $responseLog = "{$response->status_code} {$statusText} for {$maskedUrl}";
+            $responseLog = "Response received";
             if (!empty($response->body)) {
                 $maskedResponseBody = CentralMasker::maskBody($response->body);
                 $responseLog .= "\nResponse Body: " . $maskedResponseBody;
             }
-            $this->logInfoWithSdkCallerContext($responseLog, $component);
+            $ctxFromResponse = $this->mergeContextWithResponseBody($ctx, $response->body ?? null);
+            $this->logInfoWithSdkCallerContext(
+                $responseLog,
+                $component,
+                $ctxFromResponse['sub_merchant_id'] ?? null,
+                $ctxFromResponse['order_id'] ?? null,
+                $requestUri,
+                (string) $response->status_code
+            );
 
             // If HTTP status is success but body carries an error envelope, surface it (before decryption)
             // ThrowIfErrorEnvelope is called before decryption
@@ -180,20 +190,29 @@ class Request
 
             // DEBUG: Raw JSON Response (before deserialization)
             if (!empty($response->body)) {
-                $logger->log(
-                    "Raw JSON Response (before deserialization):\n" . $response->body,
-                    Logger::LOG_DEBUG,
-                    $callerInfo['module'],
-                    $callerInfo['line'],
-                    $callerInfo['function']
+                $maskedRawResponse = CentralMasker::maskBody($response->body);
+                $logger->debug(
+                    "Raw JSON Response (before deserialization):\n" . $maskedRawResponse,
+                    null,
+                    [
+                        'sub_merchant_id' => $ctxFromResponse['sub_merchant_id'] ?? null,
+                        'order_id' => $ctxFromResponse['order_id'] ?? null,
+                        'apiTag' => $callerInfo['module'] ?? $component,
+                        'uri' => $requestUri,
+                        'statusCode' => (string) $response->status_code,
+                    ]
                 );
             } else {
-                $logger->log(
+                $logger->debug(
                     "Response body is NULL",
-                    Logger::LOG_DEBUG,
-                    $callerInfo['module'],
-                    $callerInfo['line'],
-                    $callerInfo['function']
+                    null,
+                    [
+                        'sub_merchant_id' => $ctxFromResponse['sub_merchant_id'] ?? null,
+                        'order_id' => $ctxFromResponse['order_id'] ?? null,
+                        'apiTag' => $callerInfo['module'] ?? $component,
+                        'uri' => $requestUri,
+                        'statusCode' => (string) $response->status_code,
+                    ]
                 );
             }
 
@@ -203,12 +222,14 @@ class Request
                 $decrypted = $this->decryptEncryptedResponseBodyIfPresent($response->body);
                 if ($decrypted !== null) {
                     $response->body = $decrypted;
-                    $logger->log(
+                    $logger->info(
                         "Successfully decrypted encrypted response",
-                        Logger::LOG_INFO,
-                        $callerInfo['module'],
-                        $callerInfo['line'],
-                        $callerInfo['function']
+                        null,
+                        [
+                            'sub_merchant_id' => $ctxFromResponse['sub_merchant_id'] ?? null,
+                            'order_id' => $ctxFromResponse['order_id'] ?? null,
+                            'apiTag' => $callerInfo['module'] ?? $component,
+                        ]
                     );
                 }
             }
@@ -349,13 +370,7 @@ class Request
                     $body = $decryptedJson;
                     $response->body = $decryptedJson;
 
-                    $logger->log(
-                        "Successfully decrypted encrypted error response",
-                        Logger::LOG_INFO,
-                        $callerInfo['module'],
-                        $callerInfo['line'],
-                        $callerInfo['function']
-                    );
+                    $logger->info("Successfully decrypted encrypted error response", null, null, null, null, null, SdkConstants::COMPONENT_REQUEST);
                 } catch (\Exception $decryptEx) {
                     $logger->exception("Failed to decrypt encrypted error response: " . $decryptEx->getMessage(), $decryptEx);
                     // Continue with original responseBody - let error handling proceed
@@ -540,7 +555,7 @@ class Request
             $tokenRequest = json_encode($tokenRequestData);
 
             // INFO: Token request (match request() formatting: POST + headers + body)
-            $maskedRequest = $this->maskSensitiveInText($tokenRequest);
+            $maskedRequest = CentralMasker::maskBody($tokenRequest);
             $tokenHeaders = $this->getRequestHeaders();
             $tokenHeaders['Content-Type'] = 'application/json; charset=utf-8';
             $maskedTokenHeaders = $this->maskSensitiveInHeaders($tokenHeaders);
@@ -548,16 +563,18 @@ class Request
             $tokenReqLog = "POST {$tokenEndpoint}"
                 . "\nRequest Headers: " . $this->formatJsonForLog($maskedTokenHeaders)
                 . "\nRequest Body: {$maskedRequest}";
-            $this->logInfoWithSdkCallerContext($tokenReqLog, SdkConstants::COMPONENT_REQUEST);
+            $tokenUri = $this->extractUriPath($tokenEndpoint);
+            $this->logInfoWithSdkCallerContext($tokenReqLog, SdkConstants::COMPONENT_REQUEST, null, null, $tokenUri, null);
 
             // DEBUG: Raw JSON Request (before sending)
             $callerInfo = $this->resolveSdkCallerContext(SdkConstants::COMPONENT_REQUEST);
-            $logger->log(
+            $logger->debug(
                 "Raw JSON Request (before sending):\n" . $maskedRequest,
-                Logger::LOG_DEBUG,
-                $callerInfo['module'],
-                $callerInfo['line'],
-                $callerInfo['function']
+                null,
+                [
+                    'apiTag' => $callerInfo['module'] ?? SdkConstants::COMPONENT_REQUEST,
+                    'uri' => $tokenUri,
+                ]
             );
 
             $tokenOptions = [
@@ -573,23 +590,24 @@ class Request
             $tokenResponseBody = json_decode($tokenResponse->body, true);
 
             // INFO: Token response
-            $statusText = $this->getHttpStatusText((int) $tokenResponse->status_code);
-            $tokenLog = "{$tokenResponse->status_code} {$statusText} for {$tokenEndpoint}";
+            $tokenLog = "Response received";
             if (!empty($tokenResponse->body)) {
-                $maskedResponse = $this->maskSensitiveInText($tokenResponse->body);
+                $maskedResponse = CentralMasker::maskBody($tokenResponse->body);
                 $tokenLog .= "\nResponse Body: {$maskedResponse}";
             }
-            $this->logInfoWithSdkCallerContext($tokenLog, SdkConstants::COMPONENT_REQUEST);
+            $this->logInfoWithSdkCallerContext($tokenLog, SdkConstants::COMPONENT_REQUEST, null, null, $tokenUri, (string) $tokenResponse->status_code);
 
             // DEBUG: Raw JSON Response (before deserialization)
             if (!empty($tokenResponse->body)) {
-                $maskedResponseOnly = $this->maskSensitiveInText($tokenResponse->body);
-                $logger->log(
+                $maskedResponseOnly = CentralMasker::maskBody($tokenResponse->body);
+                $logger->debug(
                     "Raw JSON Response (before deserialization):\n" . $maskedResponseOnly,
-                    Logger::LOG_DEBUG,
-                    $callerInfo['module'],
-                    $callerInfo['line'],
-                    $callerInfo['function']
+                    null,
+                    [
+                        'apiTag' => $callerInfo['module'] ?? SdkConstants::COMPONENT_REQUEST,
+                        'uri' => $tokenUri,
+                        'statusCode' => (string) $tokenResponse->status_code,
+                    ]
                 );
             }
 
@@ -693,16 +711,193 @@ class Request
      * @param string $component Component name
      * @return void
      */
-    private function logInfoWithSdkCallerContext($message, $component = SdkConstants::COMPONENT_REQUEST)
+    private function logInfoWithSdkCallerContext($message, $component = SdkConstants::COMPONENT_REQUEST, $subMerchantId = null, $orderId = null, $uri = null, $statusCode = null)
     {
         $callerInfo = $this->resolveSdkCallerContext($component);
         try {
             $logFile = NimbblClient::getLogFile();
             $logger = Logger::getInstance($logFile);
-            $logger->log($message, Logger::LOG_INFO, $callerInfo['module'], $callerInfo['line'], $callerInfo['function']);
+            // Ensure APITag is consistent (filename-style) by using the resolved SDK caller module.
+            $logger->info(
+                $message,
+                null,
+                [
+                    'subMerchantId' => $subMerchantId,
+                    'orderId' => $orderId,
+                    'apiTag' => $callerInfo['module'] ?? $component,
+                    'uri' => $uri,
+                    'statusCode' => $statusCode,
+                ]
+            );
         } catch (\Exception $e) {
             // Ignore logger errors
         }
+    }
+
+    /**
+     * Extract SubMerchantID and OrderID for log context.
+     *
+     * Priority:
+     * - sub_merchant_id, order_id from JWT payload (if present)
+     * - order_id from request body (if JWT doesn't include it)
+     *
+     * @return array{sub_merchant_id?:string|int,order_id?:string}
+     */
+    private function extractLogContextFromJwtAndRequest($jwtToken, $requestData, $requestBody): array
+    {
+        $ctx = [];
+
+        // Decode JWT payload (no verification; used only for logging context)
+        if (is_string($jwtToken) && trim($jwtToken) !== '' && substr_count($jwtToken, '.') >= 2) {
+            $parts = explode('.', trim($jwtToken));
+            $payloadB64 = $parts[1] ?? '';
+            $payloadJson = $this->base64UrlDecode($payloadB64);
+            if (is_string($payloadJson) && $payloadJson !== '') {
+                $payload = json_decode($payloadJson, true);
+                if (is_array($payload)) {
+                    $subMerchantId = $this->sanitizeSubMerchantIdForLog($payload['sub_merchant_id'] ?? null);
+                    if ($subMerchantId !== null) {
+                        $ctx['sub_merchant_id'] = $subMerchantId;
+                    }
+                    $orderId = $this->sanitizeOrderIdForLog($payload['order_id'] ?? null);
+                    if ($orderId !== null) {
+                        $ctx['order_id'] = $orderId;
+                    }
+                }
+            }
+        }
+
+        // Fallback: order_id from request body/data
+        if (!isset($ctx['order_id'])) {
+            $oid = $this->extractOrderIdFromRequest($requestData, $requestBody);
+            if (is_string($oid) && $oid !== '') {
+                $ctx['order_id'] = $oid;
+            }
+        }
+
+        return $ctx;
+    }
+
+    /**
+     * Merge context with response body (for cases where order_id is returned in the response).
+     *
+     * @return array{sub_merchant_id?:string|int,order_id?:string}
+     */
+    private function mergeContextWithResponseBody(array $ctx, $responseBody): array
+    {
+        if (isset($ctx['order_id']) && $ctx['order_id'] !== '') {
+            return $ctx;
+        }
+        if (!is_string($responseBody) || trim($responseBody) === '') {
+            return $ctx;
+        }
+        $decoded = json_decode($responseBody, true);
+        if (!is_array($decoded)) {
+            return $ctx;
+        }
+        $orderId = $decoded['order_id'] ?? $decoded['nimbbl_order_id'] ?? ($decoded['order']['order_id'] ?? null);
+        $orderId = $this->sanitizeOrderIdForLog($orderId);
+        if ($orderId !== null) {
+            $ctx['order_id'] = $orderId;
+        }
+        return $ctx;
+    }
+
+    private function extractOrderIdFromRequest($requestData, $requestBody): ?string
+    {
+        // Prefer array data when available
+        if (is_array($requestData)) {
+            $orderId = $requestData['order_id'] ?? $requestData['nimbbl_order_id'] ?? null;
+            $orderId = $this->sanitizeOrderIdForLog($orderId);
+            if ($orderId !== null) {
+                return $orderId;
+            }
+            if (is_array($requestData['order'] ?? null)) {
+                $nested = $requestData['order'];
+                $orderId = $nested['order_id'] ?? $nested['nimbbl_order_id'] ?? null;
+                $orderId = $this->sanitizeOrderIdForLog($orderId);
+                if ($orderId !== null) {
+                    return $orderId;
+                }
+            }
+        }
+
+        // Fallback: parse JSON body string
+        if (is_string($requestBody) && trim($requestBody) !== '') {
+            $decoded = json_decode($requestBody, true);
+            if (is_array($decoded)) {
+                $orderId = $decoded['order_id'] ?? $decoded['nimbbl_order_id'] ?? null;
+                $orderId = $this->sanitizeOrderIdForLog($orderId);
+                if ($orderId !== null) {
+                    return $orderId;
+                }
+                if (is_array($decoded['order'] ?? null)) {
+                    $nested = $decoded['order'];
+                    $orderId = $nested['order_id'] ?? $nested['nimbbl_order_id'] ?? null;
+                    $orderId = $this->sanitizeOrderIdForLog($orderId);
+                    if ($orderId !== null) {
+                        return $orderId;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private function base64UrlDecode(string $input): string
+    {
+        $remainder = strlen($input) % 4;
+        if ($remainder) {
+            $input .= str_repeat('=', 4 - $remainder);
+        }
+        $input = strtr($input, '-_', '+/');
+        $decoded = base64_decode($input, true);
+        return is_string($decoded) ? $decoded : '';
+    }
+
+    private function sanitizeSubMerchantIdForLog($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (is_int($value) || is_float($value)) {
+            $value = (string) $value;
+        }
+        if (!is_string($value)) {
+            return null;
+        }
+        $value = trim($value);
+        if ($value === '' || strlen($value) > 32 || !preg_match('/^[0-9]+$/', $value)) {
+            return null;
+        }
+        return $value;
+    }
+
+    private function sanitizeOrderIdForLog($value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+        $value = trim($value);
+        if ($value === '' || strlen($value) > 128 || !preg_match('/^[A-Za-z0-9._:-]+$/', $value)) {
+            return null;
+        }
+        return $value;
+    }
+
+    /**
+     * Extract URI path from full URL for logging context.
+     */
+    private function extractUriPath($url): ?string
+    {
+        if (!is_string($url) || trim($url) === '') {
+            return null;
+        }
+        $path = parse_url($url, PHP_URL_PATH);
+        if (is_string($path) && $path !== '') {
+            return $path;
+        }
+        return null;
     }
 
     /**
@@ -717,7 +912,6 @@ class Request
         $skipFunctions = [
             'resolveSdkCallerContext',
             'logInfoWithSdkCallerContext',
-            'getHttpStatusText',
             'getRequestHeaders',
             'maskSensitiveInText',
             'maskSensitiveInHeaders',
@@ -773,31 +967,6 @@ class Request
             'line' => $caller['line'] ?? 0,
             'function' => $caller['function'] ?? '-',
         ];
-    }
-
-    /**
-     * Minimal HTTP status text mapping for log output.
-     */
-    private function getHttpStatusText(int $statusCode): string
-    {
-        $map = [
-            HttpStatusCodes::OK => 'OK',
-            HttpStatusCodes::CREATED => 'Created',
-            HttpStatusCodes::ACCEPTED => 'Accepted',
-            HttpStatusCodes::NO_CONTENT => 'No Content',
-            HttpStatusCodes::BAD_REQUEST => 'Bad Request',
-            HttpStatusCodes::UNAUTHORIZED => 'Unauthorized',
-            HttpStatusCodes::FORBIDDEN => 'Forbidden',
-            HttpStatusCodes::NOT_FOUND => 'Not Found',
-            HttpStatusCodes::CONFLICT => 'Conflict',
-            HttpStatusCodes::UNPROCESSABLE_ENTITY => 'Unprocessable Entity',
-            HttpStatusCodes::TOO_MANY_REQUESTS => 'Too Many Requests',
-            HttpStatusCodes::INTERNAL_SERVER_ERROR => 'Internal Server Error',
-            HttpStatusCodes::BAD_GATEWAY => 'Bad Gateway',
-            HttpStatusCodes::SERVICE_UNAVAILABLE => 'Service Unavailable',
-            HttpStatusCodes::GATEWAY_TIMEOUT => 'Gateway Timeout',
-        ];
-        return $map[$statusCode] ?? 'OK';
     }
 
     /**

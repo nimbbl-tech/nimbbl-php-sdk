@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="vendor/autoload.php"
+         colors="true"
+         failOnRisky="true"
+         failOnWarning="true">
+    <testsuites>
+        <testsuite name="unit">
+            <file>tests/CentralMaskerTest.php</file>
+            <file>tests/EncryptionTest.php</file>
+            <file>tests/PayloadHelperUtilsTest.php</file>
+            <file>tests/LoggerContextArrayTest.php</file>
+            <file>tests/RequestLogContextSanitizationTest.php</file>
+        </testsuite>
+    </testsuites>
+</phpunit>

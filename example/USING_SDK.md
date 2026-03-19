@@ -468,6 +468,26 @@ php example/exception-handling-examples.php
 
 Each file is self-contained and will prompt for required inputs.
 
+### Running Tests
+
+From the SDK root:
+
+```bash
+# Recommended: unit/offline-safe suite
+vendor/bin/phpunit -c phpunit.xml.dist
+```
+
+Optional integration scripts (require valid credentials and API/network access):
+
+```bash
+php tests/AddressTest.php
+php tests/PaymentTest.php
+php tests/PaymentLinkTest.php
+php tests/CheckoutUtilitiesTest.php
+php tests/TransactionStatusTest.php
+php tests/run-all-tests.php
+```
+
 ### Example App Structure
 
 ```text

@@ -27,6 +27,7 @@ final class CentralMaskerTest extends TestCase
     {
         $data = [
             JsonKeys::ACCESS_KEY => 'access_key_1234567890',
+            JsonKeys::TOKEN => 'eyJhbGabcdefghijklmng59w',
             JsonKeys::FIRST_NAME => 'John',
             JsonKeys::MOBILE_NUMBER => '9876543210',
             JsonKeys::EMAIL => 'john.doe@example.com',
@@ -40,6 +41,7 @@ final class CentralMaskerTest extends TestCase
         $maskedTrace = json_decode($maskedJson, true);
 
         $this->assertEquals('acce****7890', $maskedTrace[JsonKeys::ACCESS_KEY]);
+        $this->assertEquals('eyJhbG**********g59w', $maskedTrace[JsonKeys::TOKEN]);
         $this->assertEquals('J***', $maskedTrace[JsonKeys::FIRST_NAME]);
         $this->assertEquals('******3210', $maskedTrace[JsonKeys::MOBILE_NUMBER]);
         $this->assertEquals('jo******@example.com', $maskedTrace[JsonKeys::EMAIL]);

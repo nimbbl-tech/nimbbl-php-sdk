@@ -80,19 +80,21 @@ php example/payments-examples.php
 php example/refund-examples.php
 php example/transaction-status.php
 php example/addresses-examples.php
-php example/payments-examples.php
 php example/payment-links-examples.php
 php example/checkout-utilities-examples.php
 php example/exception-handling-examples.php
 
-# Run API client tests (from tests directory)
+# Run PHPUnit unit/offline-safe suite (recommended)
+vendor/bin/phpunit -c phpunit.xml.dist
+
+# Optional: run integration scripts (require valid credentials + API/network access)
 php tests/AddressTest.php
 php tests/PaymentTest.php
 php tests/PaymentLinkTest.php
 php tests/CheckoutUtilitiesTest.php
 php tests/TransactionStatusTest.php
 
-# Run all tests at once
+# Optional integration batch script
 php tests/run-all-tests.php
 ```
 

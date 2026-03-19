@@ -146,11 +146,14 @@ class Logger
 
 
     /**
-     * Log method - main logging method
-     * 
+     * Internal log writer used by convenience methods.
+     *
+     * This method is intentionally private. Use `info`, `debug`, `error`,
+     * `warning`, `critical`, or `exception` from outside this class.
+     *
      * DEBUG level logs are only printed if debug logging is enabled.
      * INFO, ERROR, WARNING, CRITICAL logs are always printed.
-     * 
+     *
      * @param string $message Log message
      * @param string $level Log level (INFO, DEBUG, ERROR, WARNING, CRITICAL)
      * @param string $component Component name (used as module name)
@@ -158,7 +161,7 @@ class Logger
      * @param string|null $function Function name (optional, will be '-' if not provided)
      * @return void
      */
-    public function log($message, $level = 'INFO', $component = 'NimbblSDK', $line = null, $function = null)
+    private function log($message, $level = 'INFO', $component = 'NimbblSDK', $line = null, $function = null, $subMerchantId = null, $orderId = null, $transactionId = null, $apiVersion = null, $apiTag = null, $uri = null, $statusCode = null)
     {
         $upperLevel = strtoupper($level);
 
@@ -167,6 +170,32 @@ class Logger
         if ($upperLevel === 'DEBUG' && !self::$enableDebugLogging) {
             return;
         }
+
+        if (($apiVersion === null || $apiVersion === '') && class_exists('Nimbbl\\Api\\RestClient\\NimbblClient')) {
+            try {
+                $resolvedVersion = NimbblClient::getAPIVersion();
+                if (is_string($resolvedVersion) && $resolvedVersion !== '') {
+                    $apiVersion = $resolvedVersion;
+                }
+            } catch (\Throwable $e) {
+                // Ignore context resolution failures
+            }
+        }
+
+        if ($apiTag === null || $apiTag === '') {
+            if (is_string($component) && $component !== '' && $component !== 'NimbblSDK') {
+                $apiTag = $component;
+            } elseif (is_string($function) && $function !== '' && $function !== '-') {
+                $apiTag = $function;
+            }
+        }
+
+        // Normalize apiTag: convert filename-style (e.g., 'Order.php') to component name (e.g., 'Order')
+        if (is_string($apiTag) && $apiTag !== '') {
+            $apiTag = SdkConstants::getComponentFromFilename($apiTag);
+        }
+
+        $messageWithContext = $this->formatContextFields($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode) . $message;
 
         // Use UTC timestamps
         $timestamp = gmdate(self::LOGGER_DATEFMT);
@@ -179,7 +208,7 @@ class Logger
             $component,
             $line ?? 0,
             $function ?? '-',
-            $message
+            $messageWithContext
         ) . PHP_EOL;
 
         $this->writeLog($logMessage);
@@ -219,66 +248,135 @@ class Logger
      * Log INFO level message
      * INFO logs are always printed regardless of debug flag
      */
-    public function info($message, $exception = null)
+    public function info($message, $exception = null, $subMerchantId = null, $orderId = null, $transactionId = null, $apiVersion = null, $apiTag = null, $uri = null, $statusCode = null)
     {
         $callerInfo = $this->getCallerInfo();
         $formattedMessage = $this->formatMessage($message, $exception);
-        $this->log($formattedMessage, 'INFO', $callerInfo['module'], $callerInfo['line'], $callerInfo['function']);
+        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode) =
+            $this->resolveContextArguments($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
+        $this->log($formattedMessage, 'INFO', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
     }
 
     /**
      * Log DEBUG level message
      * DEBUG logs are only printed if debug logging is enabled
      */
-    public function debug($message, $exception = null)
+    public function debug($message, $exception = null, $subMerchantId = null, $orderId = null, $transactionId = null, $apiVersion = null, $apiTag = null, $uri = null, $statusCode = null)
     {
         $callerInfo = $this->getCallerInfo();
         $formattedMessage = $this->formatMessage($message, $exception);
-        $this->log($formattedMessage, 'DEBUG', $callerInfo['module'], $callerInfo['line'], $callerInfo['function']);
+        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode) =
+            $this->resolveContextArguments($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
+        $this->log($formattedMessage, 'DEBUG', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
     }
 
     /**
      * Log ERROR level message
      * ERROR logs are always printed
      */
-    public function error($message, $exception = null)
+    public function error($message, $exception = null, $subMerchantId = null, $orderId = null, $transactionId = null, $apiVersion = null, $apiTag = null, $uri = null, $statusCode = null)
     {
         $callerInfo = $this->getCallerInfo();
         $formattedMessage = $this->formatMessage($message, $exception);
-        $this->log($formattedMessage, 'ERROR', $callerInfo['module'], $callerInfo['line'], $callerInfo['function']);
+        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode) =
+            $this->resolveContextArguments($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
+        $this->log($formattedMessage, 'ERROR', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
     }
 
     /**
      * Log WARNING level message
      * WARNING logs are always printed
      */
-    public function warning($message, $exception = null)
+    public function warning($message, $exception = null, $subMerchantId = null, $orderId = null, $transactionId = null, $apiVersion = null, $apiTag = null, $uri = null, $statusCode = null)
     {
         $callerInfo = $this->getCallerInfo();
         $formattedMessage = $this->formatMessage($message, $exception);
-        $this->log($formattedMessage, 'WARNING', $callerInfo['module'], $callerInfo['line'], $callerInfo['function']);
+        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode) =
+            $this->resolveContextArguments($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
+        $this->log($formattedMessage, 'WARNING', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
     }
 
     /**
      * Log CRITICAL level message
      * CRITICAL logs are always printed
      */
-    public function critical($message, $exception = null)
+    public function critical($message, $exception = null, $subMerchantId = null, $orderId = null, $transactionId = null, $apiVersion = null, $apiTag = null, $uri = null, $statusCode = null)
     {
         $callerInfo = $this->getCallerInfo();
         $formattedMessage = $this->formatMessage($message, $exception);
-        $this->log($formattedMessage, 'CRITICAL', $callerInfo['module'], $callerInfo['line'], $callerInfo['function']);
+        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode) =
+            $this->resolveContextArguments($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
+        $this->log($formattedMessage, 'CRITICAL', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
     }
 
     /**
      * Log exception as ERROR level
      * Exception logs are always printed
      */
-    public function exception($message, \Exception $exception)
+    public function exception($message, \Exception $exception, $subMerchantId = null, $orderId = null, $transactionId = null, $apiVersion = null, $apiTag = null, $uri = null, $statusCode = null)
     {
         $callerInfo = $this->getCallerInfo();
         $formattedMessage = $this->formatMessage($message, $exception);
-        $this->log($formattedMessage, 'EXCEPTION', $callerInfo['module'], $callerInfo['line'], $callerInfo['function']);
+        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode) =
+            $this->resolveContextArguments($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
+        $this->log($formattedMessage, 'EXCEPTION', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
+    }
+
+    /**
+     * Supports safer context-array usage to avoid positional-argument mistakes:
+     * Logger::info('message', null, ['subMerchantId' => '...', 'orderId' => '...'])
+     */
+    private function resolveContextArguments($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode)
+    {
+        if (!is_array($subMerchantId)) {
+            return [$subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode];
+        }
+
+        // Only treat third argument as context array when other context args are not explicitly used.
+        if ($orderId !== null || $transactionId !== null || $apiVersion !== null || $apiTag !== null || $uri !== null || $statusCode !== null) {
+            return [$subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode];
+        }
+
+        $ctx = $subMerchantId;
+        $subMerchantId = $ctx['subMerchantId'] ?? $ctx['sub_merchant_id'] ?? null;
+        $orderId = $ctx['orderId'] ?? $ctx['order_id'] ?? null;
+        $transactionId = $ctx['transactionId'] ?? $ctx['transaction_id'] ?? null;
+        $apiVersion = $ctx['apiVersion'] ?? null;
+        $apiTag = $ctx['apiTag'] ?? null;
+        $uri = $ctx['uri'] ?? null;
+        $statusCode = $ctx['statusCode'] ?? $ctx['status_code'] ?? null;
+
+        return [$subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode];
+    }
+
+    private function formatContextFields($subMerchantId = null, $orderId = null, $transactionId = null, $apiVersion = null, $apiTag = null, $uri = null, $statusCode = null)
+    {
+        $parts = [];
+
+        if ($apiVersion !== null && $apiVersion !== '') {
+            $parts[] = '[APIVersion:' . $apiVersion . ']';
+        }
+        if ($apiTag !== null && $apiTag !== '') {
+            $parts[] = '[APITag:' . $apiTag . ']';
+        }
+        if ($uri !== null && $uri !== '') {
+            $parts[] = '[URI:' . $uri . ']';
+        }
+        if ($statusCode !== null && $statusCode !== '') {
+            $parts[] = '[StatusCode:' . $statusCode . ']';
+        }
+
+        if ($subMerchantId !== null && $subMerchantId !== '') {
+            $parts[] = '[SubMerchantID:' . $subMerchantId . ']';
+        }
+        if ($orderId !== null && $orderId !== '') {
+            $parts[] = '[OrderID:' . $orderId . ']';
+        }
+        if ($transactionId !== null && $transactionId !== '') {
+            $parts[] = '[TransactionID:' . $transactionId . ']';
+        }
+
+        return empty($parts) ? '' : implode(' ', $parts) . ' ';
     }
 
     /**
@@ -297,6 +395,12 @@ class Logger
 
         $loggerClass = __CLASS__;
         $loggerFns = ['log', 'debug', 'info', 'warning', 'error', 'critical', 'exception', 'getCallerInfo', 'formatMessage', 'writeLog'];
+        
+        // Internal SDK helper methods that should be skipped when resolving the actual caller
+        $internalHelperFns = [
+            'logInfoWithSdkCallerContext',
+            'resolveSdkCallerContext',
+        ];
 
         $callSiteFrame = null;
         $callerFrame = null;
@@ -324,8 +428,12 @@ class Logger
                     if ($cCls === $loggerClass) {
                         continue;
                     }
-                    // Skip anonymous/internal wrappers
+                    // Skip Logger methods
                     if (is_string($cFn) && in_array($cFn, $loggerFns, true)) {
+                        continue;
+                    }
+                    // Skip internal SDK helper methods (e.g. Request.logInfoWithSdkCallerContext)
+                    if (is_string($cFn) && in_array($cFn, $internalHelperFns, true)) {
                         continue;
                     }
                     $callerFrame = $c;
@@ -342,7 +450,13 @@ class Logger
         $fn = $callerFrame['function'] ?? '-';
         $cls = $callerFrame['class'] ?? '';
         $type = $callerFrame['type'] ?? '';
-        $function = ($cls !== '' && $fn !== '-') ? ($cls . '.' . $fn) : ($fn ?: '-');
+
+        $shortCls = $cls;
+        if (is_string($shortCls) && strpos($shortCls, '\\') !== false) {
+            $shortCls = substr($shortCls, strrpos($shortCls, '\\') + 1);
+        }
+
+        $function = ($shortCls !== '' && $fn !== '-') ? ($shortCls . '.' . $fn) : ($fn ?: '-');
 
         return [
             'module' => $module,

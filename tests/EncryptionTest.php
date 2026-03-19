@@ -211,8 +211,9 @@ final class EncryptionTest extends TestCase
     public function testConstructorWithNullSecretThrows(): void
     {
         $this->expectException(\TypeError::class);
-        
-        new Encryption(null);
+
+        $class = new \ReflectionClass(Encryption::class);
+        $class->newInstanceArgs([null]);
     }
 
     /**
