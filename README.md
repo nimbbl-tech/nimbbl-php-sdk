@@ -474,8 +474,8 @@ $accessSecret = 'your_access_secret';
 
 if ($payload) {
     // Parse and unwrap the payload using PayloadHelperUtils
-    // This handles encryption, unwrapping, and globalHandleCheckoutResponse automatically
-    $eventData = PayloadHelperUtils::parse($payload, $accessSecret);
+    // This handles decryption/unwrapping automatically
+    $eventData = PayloadHelperUtils::parseResponse($payload, $accessSecret);
     
     // Verify webhook signature
     $verifier = new SignatureVerifier();

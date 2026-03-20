@@ -22,7 +22,6 @@ use Nimbbl\Api\Exception\NimbblException;
  * - [Payment Link Actions v3](https://nimbbl.biz/docs/api-reference/payment-link-actions-v-3/)
  * - [Payment Link Enquiry v3](https://nimbbl.biz/docs/api-reference/payment-link-enquiry-v-3/)
  */
-#[\AllowDynamicProperties]
 class PaymentLink
 {
     /**

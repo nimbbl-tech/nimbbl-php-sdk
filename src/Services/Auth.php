@@ -25,7 +25,6 @@ use Nimbbl\Api\Exception\NimbblException;
  * - Refresh Token: Uses a refresh_token (from order creation) to generate a new token
  * - Refresh Token API requires Bearer authentication with a regular token
  */
-#[\AllowDynamicProperties]
 class Auth
 {
     /**

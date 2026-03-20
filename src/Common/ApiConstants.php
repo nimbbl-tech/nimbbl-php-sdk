@@ -63,12 +63,9 @@ class ApiConstants
     const HTTP_DELETE = 'DELETE';
 
     // Token expiration threshold (in seconds)
-    // Tokens are considered expired if they will expire within this threshold
-    // Calculation: Default token expiration is 20 minutes (1200 seconds)
-    // - 1 minute (60 seconds) deducted for client HTTP timeout buffer
-    // - 1 minute (60 seconds) deducted for server timeout buffer
-    // Result: 1200 - 60 - 60 = 1080 seconds (18 minutes)
-    const TOKEN_EXPIRATION_THRESHOLD_SECONDS = 1080; // 18 minutes
+    // Tokens are considered expired if they will expire within this threshold.
+    // Keeping this buffer small ensures token caching remains effective.
+    const TOKEN_EXPIRATION_THRESHOLD_SECONDS = 60; // 1 minute buffer
 
     // HTTP client timeout (in seconds)
     // Default timeout for all HTTP requests (read/write operations)

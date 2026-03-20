@@ -10,6 +10,9 @@
             <file>tests/PayloadHelperUtilsTest.php</file>
             <file>tests/LoggerContextArrayTest.php</file>
             <file>tests/RequestLogContextSanitizationTest.php</file>
+            <file>tests/Encrypted2xxErrorHandlingTest.php</file>
+            <file>tests/TokenCacheTest.php</file>
+            <file>tests/SignatureVerifierTest.php</file>
         </testsuite>
     </testsuites>
 </phpunit>

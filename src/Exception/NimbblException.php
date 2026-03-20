@@ -30,7 +30,7 @@ class NimbblException extends \Exception
         $errorData = null,
         $previous = null
     ) {
-        parent::__construct($message, 0, $previous);
+        parent::__construct($message, (int) ($httpStatusCode ?? 0), $previous);
         $this->errorCode = $errorCode;
         $this->requestId = $requestId;
         $this->httpStatusCode = $httpStatusCode;

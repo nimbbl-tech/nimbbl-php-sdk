@@ -17,7 +17,6 @@ use Nimbbl\Api\Log\Logger;
  * 
  * API Documentation: https://nimbbl.biz/docs/category/api-reference/orders/
  */
-#[\AllowDynamicProperties]
 class Order
 {
     /**

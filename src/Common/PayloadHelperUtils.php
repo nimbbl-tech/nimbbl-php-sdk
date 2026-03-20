@@ -118,9 +118,17 @@ class PayloadHelperUtils
                 return self::parseAndUnwrapPayload($response, $secret);
             }
         } catch (\Exception $ex) {
-            // If base64 decode succeeded but JSON parse failed, try as direct JSON
-            $logger->debug("ParseResponse: Base64 decode succeeded but parse failed, trying as direct JSON. Length=" . strlen($response) . " preview=" . substr($response, 0, 200));
-            return self::parseAndUnwrapPayload($response, $secret);
+            // If base64 decode succeeded but parsing failed, try as direct JSON.
+            // Preserve the first parse exception details if the fallback also fails.
+            $logger->debug(
+                "ParseResponse: Base64 decode succeeded but parse failed, trying as direct JSON. Length=" . strlen($response) . " preview=" . substr($response, 0, 200) . " first_error=" . $ex->getMessage()
+            );
+            try {
+                return self::parseAndUnwrapPayload($response, $secret);
+            } catch (\Exception $ex2) {
+                $logger->debug("ParseResponse: direct JSON parse also failed. second_error=" . $ex2->getMessage());
+                throw $ex;
+            }
         }
     }
 }

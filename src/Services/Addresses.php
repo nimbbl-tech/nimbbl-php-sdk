@@ -26,7 +26,6 @@ use Nimbbl\Api\Common\ErrorCodes;
  * 
  * Note: All Address endpoints are marked as **Beta** in the API documentation and may change.
  */
-#[\AllowDynamicProperties]
 class Addresses
 {
 

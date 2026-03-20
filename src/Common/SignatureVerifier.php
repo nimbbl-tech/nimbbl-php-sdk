@@ -30,8 +30,10 @@ class SignatureVerifier
             throw new \InvalidArgumentException("Secret key is required");
         }
 
-        // Log incoming payload for debugging
-        $logger->info("VerifyPaymentSignature - Incoming JSON: " . json_encode($attributes));
+        // Log incoming payload (PII masked). Avoid dumping raw webhook payload at INFO level.
+        $encoded = json_encode($attributes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $masked = is_string($encoded) ? CentralMasker::maskBody($encoded) : '[unserializable payload]';
+        $logger->info("VerifyPaymentSignature - Incoming JSON: " . $masked);
 
         $txn = $attributes[JsonKeys::TRANSACTION] ?? null;
         if (empty($txn) || !is_array($txn)) {
@@ -45,6 +47,14 @@ class SignatureVerifier
         $signatureVersion = $this->tryGetString($txn, JsonKeys::SIGNATURE_VERSION);
         if (empty($signatureVersion)) {
             $signatureVersion = SdkConstants::SIGNATURE_VERSION_V3;
+        }
+
+        // Payment signatures currently only support v3.
+        // If a payload provides an unknown/downgraded signature version, fail explicitly.
+        if ($signatureVersion !== SdkConstants::SIGNATURE_VERSION_V3) {
+            $failMsg = "Unsupported signature version: {$signatureVersion}. Only " . SdkConstants::SIGNATURE_VERSION_V3 . " is supported.";
+            $logger->error(ErrorMessages::MESSAGE_SIGNATURE_VERIFICATION_FAILED . " - {$failMsg}");
+            return $this->createResult(false, $failMsg);
         }
 
         // Read signature only from inside transaction object (no fallback to attributes or order)
@@ -292,7 +302,7 @@ class SignatureVerifier
 
     /**
      * Verify signature for payment callbacks from the popup/redirect checkout.
-     * Handles nested "payload" structures and automatically detects/decrypts encrypted responses.
+     * This is a thin wrapper over `verifyPaymentSignature()` for the callback payload structure.
      * 
      * @param array $payload Response attributes containing transaction and order data
      * @param string|null $secretKey Secret key for signature verification

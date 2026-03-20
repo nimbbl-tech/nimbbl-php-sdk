@@ -73,6 +73,34 @@ class NimbblClient
      */
     public function __construct(string $key, string $secret, ?string $url = null, ?string $logFile = null, bool $encryptPayload = false, bool $debugLogging = false, bool $overrideLogFilename = false)
     {
+        // NimbblClient uses static properties internally (global process state).
+        // Prevent silent data corruption if a second instance is created with different credentials/config.
+        $prospectiveBaseUrl = self::$baseUrl;
+        $prospectiveApiVersion = self::$apiVersion;
+        if ($url !== null) {
+            $normalizedUrl = rtrim($url, '/');
+            if (preg_match('#/v\d+$#', $normalizedUrl)) {
+                $prospectiveBaseUrl = $normalizedUrl;
+                $prospectiveApiVersion = '';
+            } else {
+                $prospectiveBaseUrl = $normalizedUrl;
+            }
+        }
+
+        if (self::$key !== null) {
+            if (
+                self::$key !== $key ||
+                self::$secret !== $secret ||
+                self::$baseUrl !== $prospectiveBaseUrl ||
+                self::$apiVersion !== $prospectiveApiVersion ||
+                self::$encryptPayload !== (bool) $encryptPayload
+            ) {
+                throw new \RuntimeException(
+                    'NimbblClient configuration is global/static. Create a single NimbblClient per PHP process (or ensure identical credentials/base URL/encryption settings).'
+                );
+            }
+        }
+
         self::$key = $key;
         self::$secret = $secret;
         self::$encryptPayload = (bool) $encryptPayload;
@@ -142,7 +170,7 @@ class NimbblClient
      * @return mixed Service instance
      * @throws \Exception If service not found
      */
-    public function __get(string $name): mixed
+    public function __get(string $name)
     {
         $className = 'Nimbbl\\Api\\Services\\' . ucwords($name);
         if (class_exists($className)) {

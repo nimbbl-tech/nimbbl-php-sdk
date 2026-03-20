@@ -22,7 +22,6 @@ use Nimbbl\Api\Common\SdkConstants;
  * - OTP can be sent encrypted for security
  * - Complete Payment API is used for certain Pay Later providers where native OTP experience is required
  */
-#[\AllowDynamicProperties]
 class Payment
 {
     /**

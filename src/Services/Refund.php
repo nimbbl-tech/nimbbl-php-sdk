@@ -9,7 +9,6 @@ use Nimbbl\Api\Common\SdkConstants;
 use Nimbbl\Api\Common\EncryptedPayloadHelper;
 use Nimbbl\Api\Log\Logger;
 
-#[\AllowDynamicProperties]
 class Refund
 {
 

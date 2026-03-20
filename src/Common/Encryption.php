@@ -95,6 +95,15 @@ class Encryption
             );
         }
 
+        if ($keyIterations < 1) {
+            throw new NimbblException(
+                'keyIterations must be >= 1',
+                ErrorCodes::ENCRYPTION_ERROR,
+                null,
+                HttpStatusCodes::BAD_REQUEST
+            );
+        }
+
         $this->keyIterations = $keyIterations;
         $this->generateKey($accessSecret);
     }
@@ -362,7 +371,7 @@ class Encryption
      * 
      * @return string Hex representation of encryption key
      */
-    public function getEncryptionKeyHex(): string
+    private function getEncryptionKeyHex(): string
     {
         return bin2hex($this->encryptionKey);
     }

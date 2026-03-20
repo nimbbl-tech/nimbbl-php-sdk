@@ -21,6 +21,15 @@ final class EncryptionTest extends TestCase
     private Encryption $encryption;
     private string $testSecret = 'access_secret_test_key_123';
 
+    private function getEncryptionKeyHexViaReflection(Encryption $enc): string
+    {
+        $method = new \ReflectionMethod(Encryption::class, 'getEncryptionKeyHex');
+        $method->setAccessible(true);
+        /** @var string $keyHex */
+        $keyHex = $method->invoke($enc);
+        return $keyHex;
+    }
+
     protected function setUp(): void
     {
         $this->encryption = new Encryption($this->testSecret);
@@ -244,7 +253,7 @@ final class EncryptionTest extends TestCase
      */
     public function testGetEncryptionKeyHex(): void
     {
-        $keyHex = $this->encryption->getEncryptionKeyHex();
+        $keyHex = $this->getEncryptionKeyHexViaReflection($this->encryption);
 
         $this->assertIsString($keyHex);
         $this->assertTrue(ctype_xdigit($keyHex), 'Key hex should be valid hexadecimal');
@@ -259,8 +268,8 @@ final class EncryptionTest extends TestCase
         $enc1 = new Encryption($this->testSecret);
         $enc2 = new Encryption($this->testSecret);
 
-        $key1 = $enc1->getEncryptionKeyHex();
-        $key2 = $enc2->getEncryptionKeyHex();
+        $key1 = $this->getEncryptionKeyHexViaReflection($enc1);
+        $key2 = $this->getEncryptionKeyHexViaReflection($enc2);
 
         $this->assertEquals($key1, $key2, 'Same secret should produce same key');
     }
@@ -273,8 +282,8 @@ final class EncryptionTest extends TestCase
         $enc1 = new Encryption('access_secret_key1');
         $enc2 = new Encryption('access_secret_key2');
 
-        $key1 = $enc1->getEncryptionKeyHex();
-        $key2 = $enc2->getEncryptionKeyHex();
+        $key1 = $this->getEncryptionKeyHexViaReflection($enc1);
+        $key2 = $this->getEncryptionKeyHexViaReflection($enc2);
 
         $this->assertNotEquals($key1, $key2, 'Different secrets should produce different keys');
     }
@@ -292,6 +301,15 @@ final class EncryptionTest extends TestCase
         $decrypted = $encWithPrefix->decrypt($encrypted);
 
         $this->assertEquals('test', $decrypted);
+    }
+
+    /**
+     * Regression test: encryption key material must not be publicly exposed.
+     */
+    public function testGetEncryptionKeyHexIsNotPublic(): void
+    {
+        $method = new \ReflectionMethod(Encryption::class, 'getEncryptionKeyHex');
+        $this->assertFalse($method->isPublic());
     }
 
     /**

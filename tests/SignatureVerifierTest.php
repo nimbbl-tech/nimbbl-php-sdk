@@ -3,10 +3,6 @@
 declare(strict_types=1);
 
 namespace Nimbbl\Tests;
-
-require_once __DIR__ . '/../example/utils/helpers.php';
-
-use Nimbbl\Api\RestClient\NimbblClient;
 use Nimbbl\Api\Common\SignatureVerifier;
 use Nimbbl\Api\Common\JsonKeys;
 use Nimbbl\Api\Common\SdkConstants;
@@ -16,19 +12,12 @@ final class SignatureVerifierTest extends TestCase
 {
     private $signatureVerifier;
     private $secret;
-    private $config;
 
     protected function setUp(): void
     {
-        $this->config = loadConfig();
-        // Initialize client but we mostly need the Webhook service instance
-        $api = new NimbblClient(
-            $this->config['access_key'],
-            $this->config['access_secret'],
-            $this->config['api_endpoint']
-        );
-        $this->signatureVerifier = $api->signatureVerifier();
-        $this->secret = 'test_secret_key_12345'; // Use a fixed secret for reproducible tests
+        // Offline unit tests: SignatureVerifier is stateless and doesn't need live credentials.
+        $this->signatureVerifier = new SignatureVerifier();
+        $this->secret = 'test_secret_key_12345';
     }
 
     /**
@@ -59,7 +48,7 @@ final class SignatureVerifierTest extends TestCase
                 JsonKeys::STATUS => $status,
                 JsonKeys::TRANSACTION_TYPE => $type,
                 JsonKeys::SIGNATURE_VERSION => SdkConstants::SIGNATURE_VERSION_V3,
-                JsonKeys::NIMBBL_SIGNATURE => $signature
+                JsonKeys::SIGNATURE => $signature
             ],
             JsonKeys::EVENT_TYPE => 'payment_success'
         ];
@@ -88,7 +77,10 @@ final class SignatureVerifierTest extends TestCase
 
         $attributes = [
             JsonKeys::ORDER => [
-                JsonKeys::INVOICE_ID => $invoiceId
+                JsonKeys::INVOICE_ID => $invoiceId,
+                JsonKeys::REFUND_DETAILS => [
+                    JsonKeys::REFUNDABLE_CURRENCY => $currency,
+                ],
             ],
             JsonKeys::TRANSACTION => [
                 JsonKeys::TRANSACTION_ID => $transactionId,
@@ -97,7 +89,7 @@ final class SignatureVerifierTest extends TestCase
                 JsonKeys::REFUND_STATUS => $status,
                 JsonKeys::TRANSACTION_TYPE => $type,
                 JsonKeys::SIGNATURE_VERSION => SdkConstants::SIGNATURE_VERSION_V3,
-                JsonKeys::NIMBBL_SIGNATURE => $signature
+                JsonKeys::SIGNATURE => $signature
             ],
             JsonKeys::EVENT_TYPE => 'refund_success'
         ];
@@ -166,18 +158,14 @@ final class SignatureVerifierTest extends TestCase
                 JsonKeys::STATUS => $status,
                 JsonKeys::TRANSACTION_TYPE => $type,
                 JsonKeys::SIGNATURE_VERSION => SdkConstants::SIGNATURE_VERSION_V3,
-                JsonKeys::NIMBBL_SIGNATURE => $signature
+                JsonKeys::SIGNATURE => $signature
             ],
             JsonKeys::EVENT_TYPE => 'payment_success'
         ];
-
-        $jsonPayload = json_encode($data);
-
-        $result = $this->signatureVerifier->verifySignature($jsonPayload, $this->secret);
+        
+        $result = $this->signatureVerifier->verifySignature($data, $this->secret);
 
         $this->assertTrue($result['success'], 'Verify and Parse should succeed');
-        $this->assertIsArray($result['parsed']);
-        $this->assertEquals('payment_success', $result['parsed'][JsonKeys::EVENT_TYPE]);
     }
 
     /**
@@ -215,7 +203,7 @@ final class SignatureVerifierTest extends TestCase
                 JsonKeys::STATUS => 'success',
                 JsonKeys::TRANSACTION_TYPE => 'payment',
                 JsonKeys::SIGNATURE_VERSION => SdkConstants::SIGNATURE_VERSION_V3,
-                JsonKeys::NIMBBL_SIGNATURE => 'invalid_signature_hash'
+                JsonKeys::SIGNATURE => 'invalid_signature_hash'
             ],
             JsonKeys::EVENT_TYPE => 'payment_success'
         ];

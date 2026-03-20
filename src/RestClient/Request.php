@@ -222,6 +222,8 @@ class Request
                 $decrypted = $this->decryptEncryptedResponseBodyIfPresent($response->body);
                 if ($decrypted !== null) {
                     $response->body = $decrypted;
+                    // Encrypted 2xx error envelopes can only be detected after decryption.
+                    $this->throwIfErrorEnvelope($response->body, $callerInfo);
                     $logger->info(
                         "Successfully decrypted encrypted response",
                         null,
@@ -323,29 +325,23 @@ class Request
             return;
         }
 
-        try {
-            $decoded = json_decode($responseBody, true);
-            if (!is_array($decoded) || !isset($decoded[JsonKeys::ERROR])) {
-                return;
-            }
-
-            $errorObj = $decoded[JsonKeys::ERROR];
-            if (!is_array($errorObj)) {
-                return;
-            }
-
-            $merchantMessage = $errorObj[JsonKeys::ERROR_MERCHANT_MESSAGE] ?? null;
-            $consumerMessage = $errorObj[JsonKeys::ERROR_CONSUMER_MESSAGE] ?? null;
-            $errorCode = $errorObj[JsonKeys::ERROR_CODE] ?? null;
-            $message = $merchantMessage ?? $consumerMessage ?? $errorCode ?? ErrorMessages::MESSAGE_UNKNOWN_ERROR;
-
-            // Map as BadRequest when HTTP is 2xx but error payload present
-            throw new BadRequestException($message, $errorCode, null, HttpStatusCodes::BAD_REQUEST, $errorObj);
-        } catch (BadRequestException $e) {
-            throw $e;
-        } catch (\Exception $e) {
-            // If not JSON or parsing fails, ignore
+        $decoded = json_decode($responseBody, true);
+        if (!is_array($decoded) || !isset($decoded[JsonKeys::ERROR])) {
+            return;
         }
+
+        $errorObj = $decoded[JsonKeys::ERROR];
+        if (!is_array($errorObj)) {
+            return;
+        }
+
+        $merchantMessage = $errorObj[JsonKeys::ERROR_MERCHANT_MESSAGE] ?? null;
+        $consumerMessage = $errorObj[JsonKeys::ERROR_CONSUMER_MESSAGE] ?? null;
+        $errorCode = $errorObj[JsonKeys::ERROR_CODE] ?? null;
+        $message = $merchantMessage ?? $consumerMessage ?? $errorCode ?? ErrorMessages::MESSAGE_UNKNOWN_ERROR;
+
+        // Map as BadRequest when HTTP is 2xx but error payload present
+        throw new BadRequestException($message, $errorCode, null, HttpStatusCodes::BAD_REQUEST, $errorObj);
     }
 
     /**
@@ -675,21 +671,32 @@ class Request
      */
     public static function getCachedToken()
     {
-        // Check if cached token is still valid (with expiration threshold buffer)
-        if (self::$cachedToken !== null && self::$tokenExpiresAt !== null) {
-            $expiresTimestamp = strtotime(self::$tokenExpiresAt);
-            $currentTimestamp = time();
-            $bufferSeconds = ApiConstants::TOKEN_EXPIRATION_THRESHOLD_SECONDS; // Consider expired within threshold before actual expiration
-
-            if ($expiresTimestamp > ($currentTimestamp + $bufferSeconds)) {
-                return self::$cachedToken;
-            } else {
-                // Token expired, clear cache
-                self::clearTokenCache();
-            }
+        if (self::$cachedToken === null) {
+            return null;
         }
 
-        return self::$cachedToken;
+        // If expiry is missing, treat the token as expired (avoid "forever cached" stale tokens).
+        if (self::$tokenExpiresAt === null || self::$tokenExpiresAt === '') {
+            self::clearTokenCache();
+            return null;
+        }
+
+        $expiresTimestamp = strtotime(self::$tokenExpiresAt);
+        if ($expiresTimestamp === false) {
+            self::clearTokenCache();
+            return null;
+        }
+
+        $currentTimestamp = time();
+        $bufferSeconds = ApiConstants::TOKEN_EXPIRATION_THRESHOLD_SECONDS; // Consider expired within threshold before actual expiration
+
+        if ($expiresTimestamp > ($currentTimestamp + $bufferSeconds)) {
+            return self::$cachedToken;
+        }
+
+        // Token expired or too close to expiry, clear cache.
+        self::clearTokenCache();
+        return null;
     }
 
     /**
@@ -1044,14 +1051,14 @@ class Request
             }
             return $plaintext;
         } catch (\Throwable $e) {
-            // Don't break API calls on decryption errors; keep original body and let JSON parse/exception handling run.
-            try {
-                $logger = Logger::getInstance();
-                $logger->exception("Failed to decrypt encrypted response: " . $e->getMessage(), $e instanceof \Exception ? $e : new \Exception($e->getMessage()));
-            } catch (\Throwable $t) {
-                // ignore
-            }
-            return null;
+            // Encrypted error envelopes are meaningful; if we can't decrypt them, fail loudly.
+            throw new ApiException(
+                'Decryption failed',
+                ErrorCodes::DECRYPTION_ERROR,
+                null,
+                HttpStatusCodes::INTERNAL_SERVER_ERROR,
+                ['original_exception' => $e->getMessage()]
+            );
         }
     }
 }

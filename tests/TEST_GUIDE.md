@@ -49,6 +49,15 @@ This will test:
 - [OK] Refunds API (Initiate Refund - Full and Partial)
 - [ERROR] Users API (Removed - not an official public API)
 
+### Run Offline Unit Tests (No Credentials)
+If you only want offline/unit tests (no live API calls and no `example/config.php`), run:
+
+```bash
+vendor/bin/phpunit -c phpunit.xml.dist
+```
+
+This suite runs focused security/logging/encryption/token-cache tests only (no network).
+
 ### 3. Run Individual Test Files
 
 ```bash

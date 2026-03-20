@@ -31,7 +31,6 @@ use Nimbbl\Api\Log\Logger;
  * - Offers API returns available offers based on order and customer context
  * - Payment Modes API shows all payment modes enabled for the merchant, personalized for the customer
  */
-#[\AllowDynamicProperties]
 class CheckoutUtilities
 {
     /**
