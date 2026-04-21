@@ -551,6 +551,25 @@ Comprehensive examples are available in the `example/` directory:
 
 See [example/README.md](example/README.md) for more details.
 
+## Project Structure
+
+```text
+nimbbl-php-sdk/
+├── docs/                 # API and integration documentation
+├── example/              # Example integrations and guides
+├── logs/                 # SDK log output directory
+├── src/
+│   ├── Common/           # Shared constants, helpers, encryption, masking
+│   ├── Exception/        # SDK exception hierarchy
+│   ├── Log/              # Logger and formatting helpers
+│   ├── Models/           # Data models
+│   ├── RestClient/       # HTTP client, request orchestration, SDK client
+│   └── Services/         # API service clients (Orders, Payments, etc.)
+├── tests/                # Unit/integration test suites and guides
+├── composer.json         # Package metadata and dependencies
+└── README.md             # SDK overview and usage
+```
+
 ## 🔄 Migration from v2 to v3
 
 The SDK now exclusively uses v3 API endpoints. All v2 endpoints and backward compatibility have been removed.
