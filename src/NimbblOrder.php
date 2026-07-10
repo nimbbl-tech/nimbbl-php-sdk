@@ -52,6 +52,9 @@ class NimbblOrder extends NimbblEntity implements JsonSerializable
             $headers = $nimbblRequest->getRequestHeaders();
             $tokenArr = $nimbblRequest->generateToken();
             $headers['Authorization'] = 'Bearer ' . $tokenArr['token'];
+            // order_source: the creating integration, fixed by the SDK so a caller cannot spoof it.
+            $attributes['order_source'] = 'php-sdk';
+            $attributes['order_source_version'] = \Nimbbl\Api\NimbblApi::VERSION;
             $requestBody = json_encode($attributes);
             
             NimbblLogger::getInstance()->log("create PREPARED - endpoint: {$endpoint}, fullUrl: {$fullUrl}", 'DEBUG', 'NimbblOrder');
