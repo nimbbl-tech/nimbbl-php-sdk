@@ -16,6 +16,8 @@ class NimbblApi
 
     const VERSION = '3.6.9';
 
+    const ORDER_SOURCE = 'php-sdk';
+
     /*
      * App info is to store the Plugin/integration
      * information
