@@ -6,10 +6,14 @@ class SdkConstants
 {
     // SDK identifiers
     const SDK_NAME = 'Nimbbl PHP SDK';
-    const SDK_VERSION = '4.0.1';
+    const SDK_VERSION = '4.1.0';
 
     // Signature Constants
     const SIGNATURE_VERSION_V3 = 'v3';
+
+    // Webhook/Callback payload version. When the response carries `version` == v4,
+    // the SDK uses the new envelope handling; otherwise it falls back to legacy handling.
+    const WEBHOOK_CALLBACK_VERSION_V4 = 'v4';
 
     // Component Names (SDK Classes) - used for APITag in logs
     const COMPONENT_ORDER = 'Order';
@@ -20,6 +24,8 @@ class SdkConstants
     const COMPONENT_CHECKOUT_UTILITIES = 'CheckoutUtilities';
     const COMPONENT_TRANSACTION = 'Transaction';
     const COMPONENT_REFUND = 'Refund';
+    const COMPONENT_CAPTURE = 'Capture';
+    const COMPONENT_VOID = 'Void';
     const COMPONENT_AUTH = 'Auth';
     const COMPONENT_SDK = 'SDK';
     const COMPONENT_WEBHOOK = 'Webhook';

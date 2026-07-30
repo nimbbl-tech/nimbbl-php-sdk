@@ -87,6 +87,7 @@ class ErrorMessages
     const MESSAGE_OPERATION_COMPLETED_SUCCESSFULLY = 'Operation completed successfully';
     const MESSAGE_UNABLE_TO_PARSE_JSON = 'Unable to parse response body as JSON';
     const MESSAGE_API_REQUEST_FAILED = 'API request failed';
+    const MESSAGE_API_REQUEST_SUCCESSFUL = 'API request successful';
     const MESSAGE_AUTHENTICATION_FAILED = 'Authentication failed';
     const MESSAGE_UNKNOWN_ERROR = 'Unknown error';
 

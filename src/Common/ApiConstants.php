@@ -51,6 +51,10 @@ class ApiConstants
     // Refunds
     const REFUND_INITIATE = self::API_VERSION . '/refund';
 
+    // Pre-auth actions (capture / void)
+    const CAPTURE = self::API_VERSION . '/capture';
+    const VOID = self::API_VERSION . '/void';
+
     // Auth
     const AUTH_GENERATE_TOKEN = self::API_VERSION . '/generate-token';
     const AUTH_REFRESH_TOKEN = self::API_VERSION . '/refresh-token';

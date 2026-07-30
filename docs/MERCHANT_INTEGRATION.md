@@ -40,7 +40,7 @@ composer require nimbbl/nimbbl-sdk
 Use `NimbblClient` with your credentials. The API base URL (third parameter) is **optional**. When omitted, the SDK uses the default production URL (`https://api.nimbbl.tech`). When provided, use the base URL up to the host (e.g. `https://api.nimbbl.tech`) and append `/api/v3` to form the full endpoint.
 
 ```php
-require_once 'path/to/Nimbbl.php';  // or vendor/autoload.php if using Composer
+require 'vendor/autoload.php';
 
 use Nimbbl\Api\RestClient\NimbblClient;
 
@@ -142,34 +142,19 @@ On completion, Nimbbl sends transaction details to your backend (redirect callba
 
 ### Webhook (server-to-server POST)
 
-Webhook payloads may be plain JSON or encrypted. Use the SDK to parse and verify:
-
-1. **Parse (and decrypt if needed)**  
-   `PayloadHelperUtils::parseResponse($rawPayload, $accessSecret)` returns the decoded event array.
-
-2. **Verify signature**  
-   `SignatureVerifier::verifySignature($eventData, $accessSecret)` returns `['success' => true|false, 'message' => ...]`.
+Webhook payloads may be plain JSON, an encrypted envelope, or a v4 signed envelope. Pass the **raw** body to `SignatureVerifier::verifyWebhook()` — it reads the `version` field (source of truth) and selects the handling: `version == "v4"` → signed-envelope verification (or AES-GCM decryption for encrypted payloads); absent `version` → legacy per-field verification. It returns the parsed payload, so you don't parse separately.
 
 Example webhook handler outline:
 
 ```php
-use Nimbbl\Api\Common\PayloadHelperUtils;
 use Nimbbl\Api\Common\SignatureVerifier;
-use Nimbbl\Api\Common\JsonKeys;
 
-$payload = file_get_contents('php://input');
+$rawBody = file_get_contents('php://input');
 $secret  = $yourAccessSecret;
 
-try {
-    $eventData = PayloadHelperUtils::parseResponse($payload, $secret);
-} catch (\Exception $e) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Parse error']);
-    exit;
-}
-
 $verifier = new SignatureVerifier();
-$result   = $verifier->verifySignature($eventData, $secret);
+$result   = $verifier->verifyWebhook($rawBody, $secret);
+// => ['success' => bool, 'version' => 'v4'|'legacy', 'event_type' => ..., 'payload' => [...]]
 
 if (!$result['success']) {
     http_response_code(401);
@@ -177,8 +162,10 @@ if (!$result['success']) {
     exit;
 }
 
-$eventType = $eventData[JsonKeys::EVENT_TYPE] ?? null;
-// Handle: payment_success, payment_failed, refund_success, refund_failed, etc.
+$payload   = $result['payload'];
+$eventType = $result['event_type'] ?? null;
+// Handle: payment_success/_failed, refund_success/_failed,
+//         and pre-auth: payment_authorized, capture_success, void_success, authorization_expired.
 // Implement idempotency (same webhook may be received multiple times).
 // Must return 200 within 15 seconds.
 
@@ -186,19 +173,39 @@ http_response_code(200);
 echo json_encode(['status' => 'success', 'message' => 'Webhook processed']);
 ```
 
-Supported webhook events include: `payment_success`, `payment_failed`, `payment_reversing`, `payment_reversal_failed`, `payment_reversed`, `refund_success`, `refund_failed`, `refund_pending`.
+Supported webhook events include: `payment_success`, `payment_failed`, `payment_reversing`, `payment_reversal_failed`, `payment_reversed`, `refund_success`, `refund_failed`, `refund_pending`, and the pre-auth lifecycle `payment_authorized`, `capture_success`, `capture_failed`, `void_success`, `authorization_expired`.
+
+> The legacy `verifySignature(array)` / `verifyCallbackSignature(array)` (operate on a pre-parsed array) remain for backward compatibility, but new integrations should use the raw-body `verifyWebhook()` / `verifyCallback()` so v4 signed envelopes are verified.
 
 ### Callback (redirect with payment context)
 
-For redirect/callback responses, use the same signature verification with the callback payload (e.g. after decoding query/body). The SDK provides:
+For redirect/callback responses, pass the **raw** callback body (the base64 `response` query param, or the POST body in popup mode) to `verifyCallback()`. It unwraps the checkout wrappers (`globalHandleCheckoutResponse` / `globalCloseCheckoutModal`), verifies the signature (v4 callbacks are signed under `nimbbl_signature`; encrypted v4 is authenticated by decryption; legacy v3 by the per-field HMAC), and returns the payload:
 
 ```php
 $verifier = new SignatureVerifier();
-$result   = $verifier->verifyCallbackSignature($callbackPayload, $secret);
-// $result['success'] and $result['message']
+$rawBody  = $_GET['response'] ?? file_get_contents('php://input');
+$result   = $verifier->verifyCallback($rawBody, $secret);
+// => ['success' => bool, 'version' => 'v4'|'legacy', 'event_type' => ..., 'payload' => [...]]
+if (!$result['success']) { /* signature/decryption failed — reject */ }
+$payload = $result['payload'];
 ```
 
-Recommendation: implement both callback (for UX) and webhook (for fulfillment). Treat webhook as source of truth; use callback to show status and always re-verify on the server.
+**The callback is not the source of truth — confirm via Transaction Enquiry (or the webhook) before fulfilling.** How you read the result differs by version:
+
+**v4 (minimal callback):** carries only `checkout_status`, `reason`, `nimbbl_order_id`, `nimbbl_transaction_id`, `invoice_id`, `retry`, `message` — no transaction/amount block. Take `nimbbl_transaction_id` and enquire for the authoritative status:
+
+```php
+$txnId = $payload['nimbbl_transaction_id'] ?? null;
+if ($txnId) {
+    $enq    = $api->transactions()->transactionEnquiry(['transaction_id' => $txnId]);
+    $status = $enq['transaction'][0]['payment_status'] ?? null;   // succeeded | pending | failed
+}
+// reason === 'payment_authorized' -> pre-auth: funds HELD, not captured. Do NOT fulfil; capture first.
+```
+
+**Legacy v3 (full callback):** the transaction is inline — read `transaction.status` / `transaction.transaction_id` directly, but still reconcile via webhook or Transaction Enquiry before fulfilment.
+
+Recommendation: implement both callback (for UX) and webhook (for fulfilment). Treat the webhook / Transaction Enquiry as the source of truth; use the callback to render an interim result and always re-verify server-side.
 
 ## Processing Refunds (v3)
 

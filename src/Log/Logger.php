@@ -161,7 +161,7 @@ class Logger
      * @param string|null $function Function name (optional, will be '-' if not provided)
      * @return void
      */
-    private function log($message, $level = 'INFO', $component = 'NimbblSDK', $line = null, $function = null, $subMerchantId = null, $orderId = null, $transactionId = null, $apiVersion = null, $apiTag = null, $uri = null, $statusCode = null)
+    private function log($message, $level = 'INFO', $component = 'NimbblSDK', $line = null, $function = null, $subMerchantId = null, $orderId = null, $transactionId = null, $apiVersion = null, $apiTag = null, $uri = null, $statusCode = null, $eventType = null, $invoiceId = null)
     {
         $upperLevel = strtoupper($level);
 
@@ -195,7 +195,7 @@ class Logger
             $apiTag = SdkConstants::getComponentFromFilename($apiTag);
         }
 
-        $messageWithContext = $this->formatContextFields($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode) . $message;
+        $messageWithContext = $this->formatContextFields($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode, $eventType, $invoiceId) . $message;
 
         // Use UTC timestamps
         $timestamp = gmdate(self::LOGGER_DATEFMT);
@@ -252,9 +252,9 @@ class Logger
     {
         $callerInfo = $this->getCallerInfo();
         $formattedMessage = $this->formatMessage($message, $exception);
-        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode) =
+        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode, $eventType, $invoiceId) =
             $this->resolveContextArguments($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
-        $this->log($formattedMessage, 'INFO', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
+        $this->log($formattedMessage, 'INFO', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode, $eventType, $invoiceId);
     }
 
     /**
@@ -265,9 +265,9 @@ class Logger
     {
         $callerInfo = $this->getCallerInfo();
         $formattedMessage = $this->formatMessage($message, $exception);
-        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode) =
+        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode, $eventType, $invoiceId) =
             $this->resolveContextArguments($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
-        $this->log($formattedMessage, 'DEBUG', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
+        $this->log($formattedMessage, 'DEBUG', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode, $eventType, $invoiceId);
     }
 
     /**
@@ -278,9 +278,9 @@ class Logger
     {
         $callerInfo = $this->getCallerInfo();
         $formattedMessage = $this->formatMessage($message, $exception);
-        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode) =
+        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode, $eventType, $invoiceId) =
             $this->resolveContextArguments($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
-        $this->log($formattedMessage, 'ERROR', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
+        $this->log($formattedMessage, 'ERROR', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode, $eventType, $invoiceId);
     }
 
     /**
@@ -291,9 +291,9 @@ class Logger
     {
         $callerInfo = $this->getCallerInfo();
         $formattedMessage = $this->formatMessage($message, $exception);
-        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode) =
+        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode, $eventType, $invoiceId) =
             $this->resolveContextArguments($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
-        $this->log($formattedMessage, 'WARNING', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
+        $this->log($formattedMessage, 'WARNING', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode, $eventType, $invoiceId);
     }
 
     /**
@@ -304,9 +304,9 @@ class Logger
     {
         $callerInfo = $this->getCallerInfo();
         $formattedMessage = $this->formatMessage($message, $exception);
-        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode) =
+        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode, $eventType, $invoiceId) =
             $this->resolveContextArguments($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
-        $this->log($formattedMessage, 'CRITICAL', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
+        $this->log($formattedMessage, 'CRITICAL', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode, $eventType, $invoiceId);
     }
 
     /**
@@ -317,9 +317,9 @@ class Logger
     {
         $callerInfo = $this->getCallerInfo();
         $formattedMessage = $this->formatMessage($message, $exception);
-        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode) =
+        list($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode, $eventType, $invoiceId) =
             $this->resolveContextArguments($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
-        $this->log($formattedMessage, 'EXCEPTION', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode);
+        $this->log($formattedMessage, 'EXCEPTION', $callerInfo['module'], $callerInfo['line'], $callerInfo['function'], $subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode, $eventType, $invoiceId);
     }
 
     /**
@@ -329,12 +329,12 @@ class Logger
     private function resolveContextArguments($subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode)
     {
         if (!is_array($subMerchantId)) {
-            return [$subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode];
+            return [$subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode, null, null];
         }
 
         // Only treat third argument as context array when other context args are not explicitly used.
         if ($orderId !== null || $transactionId !== null || $apiVersion !== null || $apiTag !== null || $uri !== null || $statusCode !== null) {
-            return [$subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode];
+            return [$subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode, null, null];
         }
 
         $ctx = $subMerchantId;
@@ -345,11 +345,13 @@ class Logger
         $apiTag = $ctx['apiTag'] ?? null;
         $uri = $ctx['uri'] ?? null;
         $statusCode = $ctx['statusCode'] ?? $ctx['status_code'] ?? null;
+        $eventType = $ctx['eventType'] ?? $ctx['event_type'] ?? null;
+        $invoiceId = $ctx['invoiceId'] ?? $ctx['invoice_id'] ?? null;
 
-        return [$subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode];
+        return [$subMerchantId, $orderId, $transactionId, $apiVersion, $apiTag, $uri, $statusCode, $eventType, $invoiceId];
     }
 
-    private function formatContextFields($subMerchantId = null, $orderId = null, $transactionId = null, $apiVersion = null, $apiTag = null, $uri = null, $statusCode = null)
+    private function formatContextFields($subMerchantId = null, $orderId = null, $transactionId = null, $apiVersion = null, $apiTag = null, $uri = null, $statusCode = null, $eventType = null, $invoiceId = null)
     {
         $parts = [];
 
@@ -372,8 +374,14 @@ class Logger
         if ($orderId !== null && $orderId !== '') {
             $parts[] = '[OrderID:' . $orderId . ']';
         }
+        if ($invoiceId !== null && $invoiceId !== '') {
+            $parts[] = '[InvoiceID:' . $invoiceId . ']';
+        }
         if ($transactionId !== null && $transactionId !== '') {
             $parts[] = '[TransactionID:' . $transactionId . ']';
+        }
+        if ($eventType !== null && $eventType !== '') {
+            $parts[] = '[EventType:' . $eventType . ']';
         }
 
         return empty($parts) ? '' : implode(' ', $parts) . ' ';

@@ -149,21 +149,48 @@ class Request
             $requestUri = $this->extractUriPath($url);
             $this->logInfoWithSdkCallerContext($requestLog, $component, $ctx['sub_merchant_id'] ?? null, $ctx['order_id'] ?? null, $requestUri, null);
 
-            if ($requestBody !== null) {
-                $maskedRawRequest = CentralMasker::maskBody($requestBody);
-                $logger->debug(
-                    "Raw JSON Request (before sending):\n" . $maskedRawRequest,
-                    null,
-                    [
-                        'sub_merchant_id' => $ctx['sub_merchant_id'] ?? null,
-                        'order_id' => $ctx['order_id'] ?? null,
-                        'apiTag' => $callerInfo['module'] ?? $component,
-                        'uri' => $requestUri,
-                    ]
-                );
-            }
+            // Send with a single auth-failure retry: on 401/403 for non-auth endpoints,
+            // clear the token cache, regenerate a fresh merchant token, and retry once.
+            // Mirrors the .NET SDK's RetryRequestAsync, but scoped to auth failures only so
+            // non-idempotent writes (create-order, capture, void, refund) are never re-sent
+            // on 4xx/5xx. DEFAULT_RETRY_COUNT = 1 => at most 2 attempts.
+            $maxAttempts = ApiConstants::DEFAULT_RETRY_COUNT + 1;
+            $attempt = 0;
+            do {
+                $attempt++;
+                $response = Requests::request($url, $headers, $requestBody, $methodUpper, $options);
 
-            $response = Requests::request($url, $headers, $requestBody, $methodUpper, $options);
+                $isAuthFailure = ((int) $response->status_code === HttpStatusCodes::UNAUTHORIZED
+                    || (int) $response->status_code === HttpStatusCodes::FORBIDDEN);
+
+                // Stop unless this is a retryable auth failure with attempts remaining.
+                if (!$isAuthFailure
+                    || $attempt >= $maxAttempts
+                    || $component === SdkConstants::COMPONENT_AUTH) {
+                    break;
+                }
+
+                $logger->info(
+                    "Authentication failure (HTTP {$response->status_code}) detected. "
+                    . "Clearing token cache and retrying with a fresh merchant token."
+                );
+                self::clearTokenCache();
+
+                // Regenerate a fresh merchant token for the retry. If regeneration fails,
+                // stop retrying and let the existing error handling surface the response.
+                try {
+                    $tokenResponse = $this->generateToken();
+                    $freshToken = $tokenResponse[JsonKeys::TOKEN] ?? null;
+                    if (empty($freshToken)) {
+                        break;
+                    }
+                    self::cacheToken($freshToken, $tokenResponse[JsonKeys::EXPIRES_AT] ?? null);
+                    $headers['Authorization'] = 'Bearer ' . trim($freshToken);
+                } catch (\Exception $ex) {
+                    $logger->error("Token regeneration during auth-failure retry failed: " . $ex->getMessage());
+                    break;
+                }
+            } while ($attempt < $maxAttempts);
 
             // INFO: HTTP status line + response body
             $responseLog = "Response received";
@@ -186,34 +213,6 @@ class Request
             $isSuccessStatusCode = ($response->status_code >= 200 && $response->status_code < 300);
             if ($isSuccessStatusCode && !empty($response->body)) {
                 $this->throwIfErrorEnvelope($response->body, $callerInfo);
-            }
-
-            // DEBUG: Raw JSON Response (before deserialization)
-            if (!empty($response->body)) {
-                $maskedRawResponse = CentralMasker::maskBody($response->body);
-                $logger->debug(
-                    "Raw JSON Response (before deserialization):\n" . $maskedRawResponse,
-                    null,
-                    [
-                        'sub_merchant_id' => $ctxFromResponse['sub_merchant_id'] ?? null,
-                        'order_id' => $ctxFromResponse['order_id'] ?? null,
-                        'apiTag' => $callerInfo['module'] ?? $component,
-                        'uri' => $requestUri,
-                        'statusCode' => (string) $response->status_code,
-                    ]
-                );
-            } else {
-                $logger->debug(
-                    "Response body is NULL",
-                    null,
-                    [
-                        'sub_merchant_id' => $ctxFromResponse['sub_merchant_id'] ?? null,
-                        'order_id' => $ctxFromResponse['order_id'] ?? null,
-                        'apiTag' => $callerInfo['module'] ?? $component,
-                        'uri' => $requestUri,
-                        'statusCode' => (string) $response->status_code,
-                    ]
-                );
             }
 
             // Decrypt encrypted_response (if present) ONLY for success status codes
@@ -245,6 +244,9 @@ class Request
                         JsonKeys::MESSAGE => ErrorMessages::MESSAGE_OPERATION_COMPLETED_SUCCESSFULLY
                     ];
                 }
+                // Empty body with a non-2xx status (e.g. a 500/503 with no payload): map the
+                // status to the right exception instead of reporting a JSON deserialization error.
+                $this->checkErrors($response);
             }
 
             // Always parse response as JSON
@@ -281,6 +283,29 @@ class Request
             if (isset($result[JsonKeys::TOKEN]) && $component === SdkConstants::COMPONENT_AUTH) {
                 self::cacheToken($result[JsonKeys::TOKEN], $result[JsonKeys::EXPIRES_AT] ?? null);
             }
+
+            // Concise success line (INFO — always logged, even with DEBUG off) so callers can
+            // confirm the API succeeded and identify it without enabling debug logs. Reaching here
+            // means 2xx with no error envelope (error envelopes/non-2xx throw above).
+            $successOrderId = is_array($result)
+                ? ($result[JsonKeys::ORDER_ID] ?? $result[JsonKeys::NIMBBL_ORDER_ID] ?? ($result[JsonKeys::ORDER][JsonKeys::ORDER_ID] ?? null))
+                : null;
+            $successTxnId = is_array($result)
+                ? ($result[JsonKeys::TRANSACTION_ID] ?? ($result[JsonKeys::TRANSACTION][JsonKeys::TRANSACTION_ID] ?? null))
+                : null;
+            $successInvoiceId = is_array($result)
+                ? ($result[JsonKeys::INVOICE_ID] ?? ($result[JsonKeys::ORDER][JsonKeys::INVOICE_ID] ?? null))
+                : null;
+            $this->logInfoWithSdkCallerContext(
+                ErrorMessages::MESSAGE_API_REQUEST_SUCCESSFUL,
+                $component,
+                $ctxFromResponse['sub_merchant_id'] ?? ($ctx['sub_merchant_id'] ?? null),
+                $successOrderId ?? ($ctxFromResponse['order_id'] ?? null),
+                $requestUri,
+                (string) $response->status_code,
+                is_string($successTxnId) ? $successTxnId : null,
+                is_string($successInvoiceId) ? $successInvoiceId : null
+            );
 
             return $result;
         } catch (Exception $e) {
@@ -562,17 +587,6 @@ class Request
             $tokenUri = $this->extractUriPath($tokenEndpoint);
             $this->logInfoWithSdkCallerContext($tokenReqLog, SdkConstants::COMPONENT_REQUEST, null, null, $tokenUri, null);
 
-            // DEBUG: Raw JSON Request (before sending)
-            $callerInfo = $this->resolveSdkCallerContext(SdkConstants::COMPONENT_REQUEST);
-            $logger->debug(
-                "Raw JSON Request (before sending):\n" . $maskedRequest,
-                null,
-                [
-                    'apiTag' => $callerInfo['module'] ?? SdkConstants::COMPONENT_REQUEST,
-                    'uri' => $tokenUri,
-                ]
-            );
-
             $tokenOptions = [
                 'timeout' => ApiConstants::DEFAULT_HTTP_TIMEOUT_SECONDS,
             ];
@@ -592,20 +606,6 @@ class Request
                 $tokenLog .= "\nResponse Body: {$maskedResponse}";
             }
             $this->logInfoWithSdkCallerContext($tokenLog, SdkConstants::COMPONENT_REQUEST, null, null, $tokenUri, (string) $tokenResponse->status_code);
-
-            // DEBUG: Raw JSON Response (before deserialization)
-            if (!empty($tokenResponse->body)) {
-                $maskedResponseOnly = CentralMasker::maskBody($tokenResponse->body);
-                $logger->debug(
-                    "Raw JSON Response (before deserialization):\n" . $maskedResponseOnly,
-                    null,
-                    [
-                        'apiTag' => $callerInfo['module'] ?? SdkConstants::COMPONENT_REQUEST,
-                        'uri' => $tokenUri,
-                        'statusCode' => (string) $tokenResponse->status_code,
-                    ]
-                );
-            }
 
             // Handle null response (e.g., when json_decode fails or response is empty)
             if ($tokenResponseBody === null) {
@@ -718,7 +718,7 @@ class Request
      * @param string $component Component name
      * @return void
      */
-    private function logInfoWithSdkCallerContext($message, $component = SdkConstants::COMPONENT_REQUEST, $subMerchantId = null, $orderId = null, $uri = null, $statusCode = null)
+    private function logInfoWithSdkCallerContext($message, $component = SdkConstants::COMPONENT_REQUEST, $subMerchantId = null, $orderId = null, $uri = null, $statusCode = null, $transactionId = null, $invoiceId = null)
     {
         $callerInfo = $this->resolveSdkCallerContext($component);
         try {
@@ -731,6 +731,8 @@ class Request
                 [
                     'subMerchantId' => $subMerchantId,
                     'orderId' => $orderId,
+                    'transactionId' => $transactionId,
+                    'invoiceId' => $invoiceId,
                     'apiTag' => $callerInfo['module'] ?? $component,
                     'uri' => $uri,
                     'statusCode' => $statusCode,
@@ -997,28 +999,21 @@ class Request
         if (empty($text)) {
             return $text;
         }
-        // When DEBUG logging is enabled, do not mask request/response logs
-        if (Logger::isDebugLoggingEnabled()) {
-            return $text;
-        }
-
-        // Use CentralMasker.MaskBody() which handles both JSON and plain text
+        // Always mask, regardless of log level — matches the Nimbbl backend (nimbbl_api),
+        // which masks sensitive data at every level (DEBUG and INFO alike).
         return CentralMasker::maskBody($text);
     }
 
     /**
-     * Mask sensitive headers for logging
-     * Uses CentralMasker.MaskHeaders() or GetUnmaskedHeaders() based on debug mode
-     * 
+     * Mask sensitive headers for logging.
+     * Always masks, regardless of log level — matches the Nimbbl backend, which never
+     * unmasks sensitive data based on debug/log level.
+     *
      * @param array $headers Request headers
      * @return array Headers with sensitive values masked
      */
     private function maskSensitiveInHeaders($headers)
     {
-        // When DEBUG logging is enabled, do not mask request/response logs
-        if (Logger::isDebugLoggingEnabled()) {
-            return CentralMasker::getUnmaskedHeaders($headers);
-        }
         return CentralMasker::maskHeaders($headers);
     }
 

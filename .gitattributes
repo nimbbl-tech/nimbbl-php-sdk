@@ -1,0 +1,15 @@
+# Keep the published (dist) package lean — exclude dev-only paths from `composer require` tarballs.
+/tests            export-ignore
+/example          export-ignore
+/libs             export-ignore
+/logs             export-ignore
+/.github          export-ignore
+/phpunit.xml.dist export-ignore
+/.gitignore       export-ignore
+/.gitattributes   export-ignore
+/PUBLISHING.md    export-ignore
+/publish-sdk.sh   export-ignore
+# Legacy non-Composer autoloader (uses libs/) + dev utilities — not needed in a Composer install.
+/Nimbbl.php       export-ignore
+/clear-logs.sh    export-ignore
+/log_monitor.php  export-ignore

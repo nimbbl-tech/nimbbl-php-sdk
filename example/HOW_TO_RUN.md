@@ -93,10 +93,10 @@ del /Q composer.lock 2>nul
 composer install
 ```
 
-If you need to pin a specific release (example `4.0.1`):
+If you need to pin a specific release (example `4.1.0`):
 
 ```bash
-composer require nimbbl/nimbbl-sdk:4.0.1 --no-interaction
+composer require nimbbl/nimbbl-sdk:4.1.0 --no-interaction
 ```
 
 ### Verify Which SDK Is Active
@@ -319,12 +319,12 @@ vendor/bin/phpunit -c phpunit.xml.dist
 Optional integration scripts (require valid credentials and API/network access):
 
 ```bash
-php tests/AddressTest.php
-php tests/PaymentTest.php
-php tests/PaymentLinkTest.php
-php tests/CheckoutUtilitiesTest.php
-php tests/TransactionStatusTest.php
-php tests/run-all-tests.php
+php tests/Services/AddressesTest.php
+php tests/Services/PaymentTest.php
+php tests/Services/PaymentLinkTest.php
+php tests/Services/CheckoutUtilitiesTest.php
+php tests/Services/TransactionTest.php
+php tests/Integration/run-all-tests.php
 ```
 
 ## 📋 Example File Structure

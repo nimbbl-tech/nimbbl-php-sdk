@@ -480,12 +480,12 @@ vendor/bin/phpunit -c phpunit.xml.dist
 Optional integration scripts (require valid credentials and API/network access):
 
 ```bash
-php tests/AddressTest.php
-php tests/PaymentTest.php
-php tests/PaymentLinkTest.php
-php tests/CheckoutUtilitiesTest.php
-php tests/TransactionStatusTest.php
-php tests/run-all-tests.php
+php tests/Services/AddressesTest.php
+php tests/Services/PaymentTest.php
+php tests/Services/PaymentLinkTest.php
+php tests/Services/CheckoutUtilitiesTest.php
+php tests/Services/TransactionTest.php
+php tests/Integration/run-all-tests.php
 ```
 
 ### Example App Structure

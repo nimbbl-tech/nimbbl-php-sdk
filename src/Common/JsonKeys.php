@@ -57,6 +57,10 @@ class JsonKeys
     const FIRST_NAME = 'first_name';
     const LAST_NAME = 'last_name';
     const CARD_HOLDER_NAME = 'card_holder_name';
+    // Response-side PII field names (webhook/callback payloads use these short forms).
+    const NAME = 'name';
+    const MOBILE = 'mobile';
+    const CARD_HOLDER = 'card_holder';
     const UPI_HOLDER = 'upi_holder';
     const UPI_ID = 'upi_id';
     const WALLET_CODE = 'wallet_code';
@@ -106,4 +110,26 @@ class JsonKeys
     const PAYLOAD = 'payload';
     const CALLBACK = 'callback';
     const GLOBAL_HANDLE_CHECKOUT_RESPONSE = 'globalHandleCheckoutResponse';
+    const GLOBAL_CLOSE_CHECKOUT_MODAL = 'globalCloseCheckoutModal';
+
+    // Payload version — source of truth for choosing v4 (new) vs legacy handling.
+    const VERSION = 'version';
+    const SUB_MERCHANT_ID = 'sub_merchant_id';
+
+    // Pre-auth / capture / void keys
+    const CAPTURE_STATUS = 'capture_status';
+    const VOID_STATUS = 'void_status';
+    const CAPTURE_TYPE = 'capture_type';
+    const ORIGINAL_PAYMENT_TRANSACTION_ID = 'original_payment_transaction_id';
+    const PAYMENT_TRANSACTION_AMOUNT = 'payment_transaction_amount';
+    const AUTHORIZATION_DETAILS = 'authorization_details';
+    const REVERSAL_REASON = 'reversal_reason';
+    const COMMENT = 'comment';
+    const NEXT = 'next';
+    const LAPSED_REASON = 'lapsed_reason';
+
+    // Checkout callback keys
+    const CHECKOUT_STATUS = 'checkout_status';
+    const REASON = 'reason';
+    const RETRY = 'retry';
 }

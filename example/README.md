@@ -88,14 +88,14 @@ php example/exception-handling-examples.php
 vendor/bin/phpunit -c phpunit.xml.dist
 
 # Optional: run integration scripts (require valid credentials + API/network access)
-php tests/AddressTest.php
-php tests/PaymentTest.php
-php tests/PaymentLinkTest.php
-php tests/CheckoutUtilitiesTest.php
-php tests/TransactionStatusTest.php
+php tests/Services/AddressesTest.php
+php tests/Services/PaymentTest.php
+php tests/Services/PaymentLinkTest.php
+php tests/Services/CheckoutUtilitiesTest.php
+php tests/Services/TransactionTest.php
 
 # Optional integration batch script
-php tests/run-all-tests.php
+php tests/Integration/run-all-tests.php
 ```
 
 ##  Configuration

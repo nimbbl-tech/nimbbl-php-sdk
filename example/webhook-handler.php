@@ -24,6 +24,9 @@ error_reporting(E_ALL & ~E_DEPRECATED);
  * - payment_success, payment_failed, payment_reversing
  * - payment_reversal_failed, payment_reversed
  * - refund_success, refund_failed, refund_pending
+ * - payment_authorized (pre-auth)
+ * - capture_pending, capture_success, capture_failed (pre-auth)
+ * - void_pending, void_success, void_failed (pre-auth)
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -58,6 +61,9 @@ function displayWebhookInfo()
     printInfo("- payment_success, payment_failed, payment_reversing\n");
     printInfo("- payment_reversal_failed, payment_reversed\n");
     printInfo("- refund_success, refund_failed, refund_pending\n");
+    printInfo("- payment_authorized (pre-auth)\n");
+    printInfo("- capture_pending, capture_success, capture_failed (pre-auth)\n");
+    printInfo("- void_pending, void_success, void_failed (pre-auth)\n");
     printInfo("\nFor implementation details, check example/webhook-handler.php\n");
 }
 
@@ -97,31 +103,26 @@ if (empty($secret)) {
     exit;
 }
 
-// Parse and unwrap the payload using PayloadHelperUtils (handles encryption, unwrapping, etc.)
-try {
-    $eventData = PayloadHelperUtils::parseResponse($payload, $secret);
-} catch (Exception $e) {
-    $logger->error("Webhook parse error: " . $e->getMessage());
-    http_response_code(400);
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'Webhook parse error: ' . $e->getMessage()], JSON_PRETTY_PRINT);
-    exit;
-}
-
-// Verify webhook signature
+// Verify + parse the webhook in one step.
+// verifyWebhook() reads the `version` field and automatically chooses the correct handling:
+//   - version == "v4" -> new signed envelope (HMAC over the whole payload; encrypted => decrypt authenticates)
+//   - version absent / v1 / v2 / v3 -> legacy per-field signature handling
+// This keeps existing (pre-v4) merchants working unchanged while supporting the new format.
 $verifier = new SignatureVerifier();
-$result = $verifier->verifySignature($eventData, $secret);
+$result = $verifier->verifyWebhook($payload, $secret);
 
 if (!$result['success']) {
-    $logger->error("Webhook signature verification failed: " . ($result['message'] ?? 'Unknown error'));
+    $logger->error("Webhook verification failed: " . ($result['message'] ?? 'Unknown error'));
     http_response_code(401);
     header('Content-Type: application/json');
-    echo json_encode(['error' => 'Webhook signature verification failed'], JSON_PRETTY_PRINT);
+    echo json_encode(['error' => 'Webhook verification failed'], JSON_PRETTY_PRINT);
     exit;
 }
 
-// Get event type from payload (event_type field in webhook payload per documentation)
-$eventType = $eventData[JsonKeys::EVENT_TYPE] ?? null;
+// Verified, decoded payload and event type.
+$eventData = $result['payload'] ?? [];
+$eventType = $result['event_type'] ?? ($eventData[JsonKeys::EVENT_TYPE] ?? null);
+$logger->info("Webhook payload version: " . ($result['version'] ?? 'legacy'));
 
 // Extract IDs from payload (nimbbl_order_id, nimbbl_transaction_id per documentation)
 $nimbblOrderId = getOrderId($eventData);
@@ -166,6 +167,28 @@ try {
             break;
         case 'refund_pending':
             handleRefundPending($eventData);
+            break;
+        // Pre-authorization events
+        case 'payment_authorized':
+            handlePaymentAuthorized($eventData);
+            break;
+        case 'capture_pending':
+            handleCapturePending($eventData);
+            break;
+        case 'capture_success':
+            handleCaptureSuccess($eventData);
+            break;
+        case 'capture_failed':
+            handleCaptureFailed($eventData);
+            break;
+        case 'void_pending':
+            handleVoidPending($eventData);
+            break;
+        case 'void_success':
+            handleVoidSuccess($eventData);
+            break;
+        case 'void_failed':
+            handleVoidFailed($eventData);
             break;
         default:
             Logger::getInstance()->warning("Unknown event type: " . ($eventType ?? 'N/A'));
@@ -429,6 +452,96 @@ function handleRefundPending(array $event)
 
     // Your business logic here
     // Example: Update refund status to 'pending', notify customer
+}
+
+/**
+ * Handle payment_authorized event (Pre-auth)
+ *
+ * The payment is AUTHORIZED but NOT captured — funds are only held.
+ * Do NOT fulfil the order here. Capture (to collect) or void (to release) it.
+ * The `transaction.authorization_details` block carries expiry_time, captured_amount, etc.
+ *
+ * @param array $event Webhook event payload
+ */
+function handlePaymentAuthorized(array $event)
+{
+    $txn = getTransactionData($event);
+    $authDetails = $txn[JsonKeys::AUTHORIZATION_DETAILS] ?? null;
+    Logger::getInstance()->info("Payment authorized (pre-auth): " . (getTransactionId($event) ?? 'N/A')
+        . " | auth_details=" . json_encode($authDetails));
+
+    // Your business logic here:
+    // - Mark the order as 'authorized' (funds held, not collected)
+    // - Do NOT fulfil yet — decide to capture or void
+    // - Note the authorization expiry_time; capture/void before it lapses
+}
+
+/**
+ * Handle capture_pending event (Pre-auth)
+ *
+ * @param array $event Webhook event payload
+ */
+function handleCapturePending(array $event)
+{
+    Logger::getInstance()->info("Capture pending: " . (getTransactionId($event) ?? 'N/A'));
+    // Your business logic: mark capture in-progress; await capture_success / capture_failed.
+}
+
+/**
+ * Handle capture_success event (Pre-auth). Order becomes 'completed'.
+ *
+ * @param array $event Webhook event payload
+ */
+function handleCaptureSuccess(array $event)
+{
+    $txn = getTransactionData($event);
+    Logger::getInstance()->info("Capture success: " . (getTransactionId($event) ?? 'N/A')
+        . " | original_payment_txn=" . ($txn[JsonKeys::ORIGINAL_PAYMENT_TRANSACTION_ID] ?? 'N/A'));
+    // Your business logic: funds collected — now safe to fulfil the order.
+}
+
+/**
+ * Handle capture_failed event (Pre-auth)
+ *
+ * @param array $event Webhook event payload
+ */
+function handleCaptureFailed(array $event)
+{
+    Logger::getInstance()->error("Capture failed: " . (getTransactionId($event) ?? 'N/A'));
+    // Your business logic: log/alert; the authorization may still be voidable or may expire.
+}
+
+/**
+ * Handle void_pending event (Pre-auth)
+ *
+ * @param array $event Webhook event payload
+ */
+function handleVoidPending(array $event)
+{
+    Logger::getInstance()->info("Void pending: " . (getTransactionId($event) ?? 'N/A'));
+    // Your business logic: mark void in-progress; await void_success / void_failed.
+}
+
+/**
+ * Handle void_success event (Pre-auth). Authorization released; order becomes 'lapsed'.
+ *
+ * @param array $event Webhook event payload
+ */
+function handleVoidSuccess(array $event)
+{
+    Logger::getInstance()->info("Void success: " . (getTransactionId($event) ?? 'N/A'));
+    // Your business logic: hold released, customer not charged — cancel the order.
+}
+
+/**
+ * Handle void_failed event (Pre-auth)
+ *
+ * @param array $event Webhook event payload
+ */
+function handleVoidFailed(array $event)
+{
+    Logger::getInstance()->error("Void failed: " . (getTransactionId($event) ?? 'N/A'));
+    // Your business logic: log/alert; retry void or let the authorization expire.
 }
 
 /**

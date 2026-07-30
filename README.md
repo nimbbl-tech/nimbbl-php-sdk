@@ -75,7 +75,7 @@ if (!isset($order['error'])) {
 ### [OK] Complete API Coverage
 
 - **Orders API** - Create, retrieve orders (uses Order Token)
-- **Payments API** - Initiate, complete payments, resend OTP (uses Order Token)
+- **Payments API** - Initiate, complete payments, resend OTP (Order Token); pre-auth **capture / void** (Merchant Token)
 - **Payment Links API** - Create, update, manage payment links (uses Order Token)
 - **Addresses API** - Manage customer addresses (uses Order Token)
 - **Refunds API** - Process refunds (full and partial) (uses Merchant Token)
@@ -213,6 +213,28 @@ $api->payments()->resendPaymentOtp([
     'transaction_id' => 'transaction_id'
 ], $orderToken);
 ```
+
+##### Pre-Authorization: Capture / Void
+
+Available when the sub-merchant is configured with `capture_mode=manual` (contact Nimbbl to enable). A pre-authorized checkout yields a transaction in the `authorized` status; you then either **capture** the held funds or **void** the hold. Both use the **merchant token** and are asynchronous — a `pending` status is normal; confirm the outcome via the `capture_success` / `void_success` webhook or Transaction Enquiry.
+
+```php
+// Capture an authorized payment (collects the held funds — full amount only)
+$capture = $api->payments()->capture([
+    'transaction_id' => 'o_xxxx-yyyy',
+    'comment' => 'Goods dispatched'   // optional
+], $merchantToken);
+// => ['capture_status' => 'succeeded'|'pending'|'failed', 'transaction_id' => ..., ...]
+
+// Void an authorized payment (releases the hold without charging — cannot be undone)
+$void = $api->payments()->void([
+    'transaction_id' => 'o_aaaa-bbbb',
+    'comment' => 'Customer cancelled' // optional
+], $merchantToken);
+// => ['void_status' => 'succeeded'|'pending'|'failed', 'transaction_id' => ..., ...]
+```
+
+> Capture is terminal — a transaction can be captured **or** voided, not both. Never fulfil an order on `authorized` alone; capture first. See [example/capture-void-examples.php](example/capture-void-examples.php).
 
 #### Payment Links API
 
@@ -392,54 +414,59 @@ $validation = $api->checkoutUtilities()->validateUpiVpa(['upi_id' => 'user@paytm
 
 **Note:** Encrypted payloads are not enabled by default. Please reach out to [support@nimbbl.tech](mailto:support@nimbbl.tech) if you want this functionality.
 
-The `PayloadHelperUtils` class provides utilities for parsing and handling payment callbacks from Standard Checkout integration. It automatically handles base64 encoding, JSON parsing, encryption decryption, and unwrapping of `globalHandleCheckoutResponse` events.
+Always **verify the signature first** with `SignatureVerifier::verifyCallback()` on the **raw** body. It reads the payload's `version` field (source of truth) and picks the handling automatically — v4 signed envelope (signed with `nimbbl_signature`), encrypted v4 (AES-GCM decryption authenticates), or legacy v3 per-field — and unwraps the checkout wrappers (`globalHandleCheckoutResponse` / `globalCloseCheckoutModal`) for you.
 
 **References:**
 - [Standard Checkout Integration Guide](https://nimbbl.biz/docs/standard-checkout/completing-integration/) - Understanding callbacks
 - [Encryption/Decryption Guide](https://nimbbl.biz/docs/guides/encrypt-decrypt-payload/) - Detailed encryption implementation
 
 ```php
-use Nimbbl\Api\Common\PayloadHelperUtils;
 use Nimbbl\Api\Common\SignatureVerifier;
 use Nimbbl\Api\Common\JsonKeys;
 
-// Example 1: Handle payment callback (GET with base64-encoded response)
-// The response parameter may be base64-encoded or raw JSON
-$responseParam = $_GET['response'] ?? '';
 $accessSecret = 'your_access_secret';
-
-// PayloadHelperUtils::parseResponse() automatically detects and handles:
-// - Base64 decoding
-// - JSON parsing
-// - Encryption decryption
-// - globalHandleCheckoutResponse unwrapping
-$parsed = PayloadHelperUtils::parseResponse($responseParam, $accessSecret);
-
-// Verify signature using verifyCallbackSignature
 $verifier = new SignatureVerifier();
-$result = $verifier->verifyCallbackSignature($parsed, $accessSecret);
 
-if ($result['success']) {
-    // Extract payment details - prioritize transaction.status
-    $status = $parsed[JsonKeys::TRANSACTION][JsonKeys::STATUS] 
-        ?? $parsed[JsonKeys::STATUS] ?? null;
-    
-    $orderId = $parsed[JsonKeys::NIMBBL_ORDER_ID] ?? null;
-    // Extract transaction_id only from transaction object
-    $transactionId = $parsed[JsonKeys::TRANSACTION][JsonKeys::TRANSACTION_ID] ?? null;
-    
-    // Process payment based on status
-    if ($status === 'succeeded' || $status === 'success') {
-        // Payment successful
-    }
+// Standard Checkout callback — pass the RAW body:
+//   - redirect/GET mode:  the base64 `response` query param
+//   - popup/POST mode:    the raw request body
+$rawBody = $_GET['response'] ?? file_get_contents('php://input');
+
+$result = $verifier->verifyCallback($rawBody, $accessSecret);
+// => ['success' => bool, 'version' => 'v4'|'legacy', 'event_type' => ..., 'payload' => [...]]
+
+if (!$result['success']) {
+    http_response_code(400);   // signature/decryption failed — do NOT trust the callback
+    exit;
 }
-
-// Example 2: Handle callback from popup mode (POST JSON)
-$raw = file_get_contents('php://input');
-$parsed = PayloadHelperUtils::parseResponse($raw, $accessSecret);
-$result = $verifier->verifyCallbackSignature($parsed, $accessSecret);
-// ... process callback
+$payload = $result['payload'];
 ```
+
+**⚠️ The callback is never the source of truth for the result screen — always confirm via Transaction Enquiry (or the webhook).** This matters most for v4, whose callback is *minimal*.
+
+**v4 callback (minimal)** — carries only: `checkout_status`, `reason`, `nimbbl_order_id`, `nimbbl_transaction_id` (may be `null`), `invoice_id`, `retry`, `message`. There is **no** transaction/amount/status block — take `nimbbl_transaction_id` and enquire:
+
+```php
+$transactionId = $payload[JsonKeys::NIMBBL_TRANSACTION_ID] ?? null;   // v4: top level
+if ($transactionId) {
+    $enq  = $api->transactions()->transactionEnquiry([JsonKeys::TRANSACTION_ID => $transactionId]);
+    $txn  = $enq['transaction'][0] ?? [];
+    $status = $txn['payment_status'] ?? null;   // 'succeeded' | 'pending' | 'failed' — authoritative
+    // 'succeeded' -> fulfil ; 'pending' -> still processing ; 'failed' -> failed
+}
+// Pre-auth: reason === 'payment_authorized' means funds are HELD, not captured — do NOT fulfil; capture first.
+```
+
+**Legacy v3 callback (full payload)** — carries the transaction inline; you can read it directly, but still reconcile before fulfilment:
+
+```php
+$status        = $payload['transaction']['status'] ?? $payload['status'] ?? null;
+$orderId       = $payload['nimbbl_order_id'] ?? $payload['order']['order_id'] ?? null;
+$transactionId = $payload['transaction']['transaction_id'] ?? null;
+// Treat webhook / Transaction Enquiry as the source of truth before fulfilling the order.
+```
+
+> The legacy `verifyCallbackSignature(array $payload, $secret)` (operates on a pre-parsed array) is retained for backward compatibility, but new integrations should use `verifyCallback()` on the raw body so v4 signed envelopes are verified correctly.
 
 ### Encryption/Decryption
 
@@ -464,32 +491,38 @@ $decrypted = $encryption->decrypt($encrypted, true); // true = return as array
 
 ### Webhook Handling
 
+Use `SignatureVerifier::verifyWebhook()` on the **raw** request body. Like `verifyCallback()`, it selects v4 signed-envelope vs legacy per-field handling off the `version` field and returns the parsed payload.
+
 ```php
-use Nimbbl\Api\Common\PayloadHelperUtils;
 use Nimbbl\Api\Common\SignatureVerifier;
 
-// Get webhook payload
-$payload = file_get_contents('php://input');
+$rawBody = file_get_contents('php://input');
 $accessSecret = 'your_access_secret';
 
-if ($payload) {
-    // Parse and unwrap the payload using PayloadHelperUtils
-    // This handles decryption/unwrapping automatically
-    $eventData = PayloadHelperUtils::parseResponse($payload, $accessSecret);
-    
-    // Verify webhook signature
-    $verifier = new SignatureVerifier();
-    $result = $verifier->verifySignature($eventData, $accessSecret);
-    
-    if ($result['success']) {
-        // Process event
-        $eventType = $eventData['event_type'] ?? null;
-        $orderId = $eventData['nimbbl_order_id'] ?? null;
-        // Extract transaction_id only from transaction object
-        $transactionId = $eventData['transaction']['transaction_id'] ?? null;
+$verifier = new SignatureVerifier();
+$result = $verifier->verifyWebhook($rawBody, $accessSecret);
+// => ['success' => bool, 'version' => 'v4'|'legacy', 'event_type' => ..., 'payload' => [...]]
+
+if ($result['success']) {
+    $payload       = $result['payload'];
+    $eventType     = $result['event_type'] ?? $payload['event_type'] ?? null;
+    $orderId       = $payload['nimbbl_order_id'] ?? $payload['order']['order_id'] ?? null;
+    $transactionId = $payload['transaction']['transaction_id'] ?? null;
+
+    // Branch on the event type. Pre-auth lifecycle: payment_authorized ->
+    // capture_success / void_success (or *_pending / *_failed).
+    switch ($eventType) {
+        case 'capture_success': /* funds captured — safe to fulfil */ break;
+        case 'void_success':    /* hold released — cancel the order */ break;
+        // 'payment_success', 'refund_success', ... handle as needed
     }
+
+    // Respond 200 within 15s to acknowledge; reconcile via Transaction Enquiry.
+    http_response_code(200);
 }
 ```
+
+> The legacy `verifySignature(array $eventData, $secret)` is retained for backward compatibility; new integrations should use `verifyWebhook()` on the raw body.
 
 ### Error Handling
 
@@ -523,15 +556,14 @@ try {
 ### Run Tests
 
 ```bash
-# Run all tests
-php tests/run-all-tests.php
+# Offline unit suite (no credentials, no network) — signatures, webhook/callback, pre-auth E2E
+vendor/bin/phpunit
 
-# Run specific test
-php tests/OrderTest.php
-php tests/PaymentTest.php
+# Live/integration against the configured environment (needs example/config.php)
+php tests/Integration/test-all-apis.php
 ```
 
-See [tests/README.md](tests/README.md) for more details.
+See [tests/README.md](tests/README.md) for the full testing guide (offline vs live, pre-auth capture/void, webhook/callback verification).
 
 ##  Examples
 
@@ -608,5 +640,5 @@ For support, email support@nimbbl.biz
 
 ---
 
-**Version**: 4.0.1  
-**Last Updated**: February 23, 2026
+**Version**: 4.1.0  
+**Last Updated**: July 27, 2026

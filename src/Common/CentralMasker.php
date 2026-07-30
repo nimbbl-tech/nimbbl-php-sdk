@@ -28,8 +28,12 @@ class CentralMasker
         JsonKeys::LAST_NAME,
         JsonKeys::CARD_HOLDER_NAME,
         JsonKeys::UPI_HOLDER,
+            // Response-side PII field names (webhook/callback use short forms)
+        JsonKeys::NAME,
+        JsonKeys::CARD_HOLDER,
             // Mobile/Phone
         JsonKeys::MOBILE_NUMBER,
+        JsonKeys::MOBILE,
             // Email
         JsonKeys::EMAIL,
             // Address fields
@@ -37,6 +41,7 @@ class CentralMasker
         JsonKeys::LANDMARK,
         JsonKeys::AREA,
         JsonKeys::CITY,
+        JsonKeys::STATE,
             // Pincode
         JsonKeys::PINCODE,
         JsonKeys::POSTAL_CODE,
@@ -169,13 +174,15 @@ class CentralMasker
                             $keyLower = strtolower($key);
 
                             // Use appropriate masking based on key type (following Nimbbl PII masking guidelines)
-                            if ($keyLower === strtolower(JsonKeys::ACCESS_KEY) || $keyLower === strtolower(JsonKeys::ACCESS_SECRET)) {
+                            if ($keyLower === strtolower(JsonKeys::ACCESS_SECRET)) {
+                                $masked[$key] = self::maskAccessSecret($value);
+                            } elseif ($keyLower === strtolower(JsonKeys::ACCESS_KEY)) {
                                 $masked[$key] = self::maskAccessKey($value);
                             } elseif (strpos($keyLower, 'token') !== false) {
                                 $masked[$key] = self::maskToken($value);
                             } elseif (
                                 strpos($keyLower, 'name') !== false ||
-                                in_array($keyLower, [strtolower(JsonKeys::FIRST_NAME), strtolower(JsonKeys::LAST_NAME), strtolower(JsonKeys::CARD_HOLDER_NAME), strtolower(JsonKeys::UPI_HOLDER)])
+                                in_array($keyLower, [strtolower(JsonKeys::FIRST_NAME), strtolower(JsonKeys::LAST_NAME), strtolower(JsonKeys::CARD_HOLDER_NAME), strtolower(JsonKeys::CARD_HOLDER), strtolower(JsonKeys::UPI_HOLDER)])
                             ) {
                                 $masked[$key] = self::maskName($value);
                             } elseif (strpos($keyLower, 'phone') !== false || strpos($keyLower, 'mobile') !== false || strpos($keyLower, 'contact_number') !== false) {
@@ -184,9 +191,11 @@ class CentralMasker
                                 $masked[$key] = self::maskEmail($value);
                             } elseif (
                                 strpos($keyLower, 'address') !== false ||
-                                in_array($keyLower, [strtolower(JsonKeys::STREET), strtolower(JsonKeys::LANDMARK), strtolower(JsonKeys::AREA), strtolower(JsonKeys::CITY)])
+                                in_array($keyLower, [strtolower(JsonKeys::STREET), strtolower(JsonKeys::LANDMARK), strtolower(JsonKeys::AREA)])
                             ) {
                                 $masked[$key] = self::maskAddress($value);
+                            } elseif ($keyLower === strtolower(JsonKeys::CITY) || $keyLower === strtolower(JsonKeys::STATE)) {
+                                $masked[$key] = self::maskCityArea($value);
                             } elseif (
                                 strpos($keyLower, 'pincode') !== false ||
                                 in_array($keyLower, [strtolower(JsonKeys::PINCODE), strtolower(JsonKeys::POSTAL_CODE), strtolower(JsonKeys::ZIP_CODE)])
@@ -197,9 +206,9 @@ class CentralMasker
                             } elseif ($keyLower === strtolower(JsonKeys::CARD_NO) || $keyLower === strtolower(JsonKeys::CARD_NUMBER)) {
                                 $masked[$key] = self::maskCardNumber($value);
                             } elseif ($keyLower === strtolower(JsonKeys::CVV)) {
-                                $masked[$key] = 'XXX';
+                                $masked[$key] = '***';
                             } elseif (strpos($keyLower, 'expiry') !== false || $keyLower === strtolower(JsonKeys::EXPIRY_DATE)) {
-                                $masked[$key] = 'XX/XXXX';
+                                $masked[$key] = '**/****';
                             } elseif (in_array($keyLower, [strtolower(JsonKeys::ACCOUNT_NUMBER), strtolower(JsonKeys::ACCOUNT_NO)])) {
                                 $masked[$key] = self::maskAccountNumber($value);
                             } elseif (strpos($keyLower, 'ifsc') !== false || $keyLower === strtolower(JsonKeys::IFSC_CODE)) {
@@ -260,10 +269,11 @@ class CentralMasker
     {
         if (empty($value))
             return $value;
-        if (strlen($value) <= 10)
+        $value = trim($value);
+        // Nimbbl API format (mask_token): first 5 + 11 asterisks + last 7
+        if (strlen($value) <= 12)
             return str_repeat('*', strlen($value));
-        // Standard token masking: show first 6 and last 4 characters
-        return substr($value, 0, 6) . "**********" . substr($value, -4);
+        return substr($value, 0, 5) . "***********" . substr($value, -7);
     }
 
     private static function maskAccessKey($value)
@@ -272,8 +282,19 @@ class CentralMasker
             return $value;
         if (strlen($value) <= 8)
             return str_repeat('*', strlen($value));
-        // Show first 4 and last 4 characters
+        // access_key has no dedicated Nimbbl API rule; show first 4 and last 4
         return substr($value, 0, 4) . "****" . substr($value, -4);
+    }
+
+    private static function maskAccessSecret($value)
+    {
+        if (empty($value))
+            return $value;
+        $value = trim($value);
+        // Nimbbl API format (mask_access_secret): first 17 + 11 asterisks + last 4
+        if (strlen($value) <= 21)
+            return str_repeat('*', strlen($value));
+        return substr($value, 0, 17) . "***********" . substr($value, -4);
     }
 
     private static function maskName($value)
@@ -288,8 +309,8 @@ class CentralMasker
         $maskedParts = array_map(function ($part) {
             if (empty($part))
                 return $part;
-            if (strlen($part) == 1)
-                return $part . "*";
+            if (strlen($part) <= 1)
+                return $part;
             // First letter + asterisks
             return $part[0] . str_repeat('*', strlen($part) - 1);
         }, $parts);
@@ -335,21 +356,43 @@ class CentralMasker
         if (empty($value))
             return $value;
 
-        $atIndex = strpos($value, '@');
-        if ($atIndex !== false && $atIndex > 0 && $atIndex < strlen($value) - 1) {
-            $localPart = substr($value, 0, $atIndex);
-            $domain = substr($value, $atIndex);
+        // Nimbbl API (mask_email): URL-decode, then tier by local-part length.
+        $processed = urldecode($value);
+        $atIndex = strpos($processed, '@');
+        if ($atIndex === false)
+            return $value;
 
-            if (strlen($localPart) <= 2) {
-                return str_repeat('*', strlen($localPart)) . $domain;
-            }
+        $local = substr($processed, 0, $atIndex);
+        $domain = substr($processed, $atIndex); // includes '@'
+        $len = strlen($local);
 
-            $first2 = substr($localPart, 0, 2);
-            $masked = str_repeat('*', strlen($localPart) - 2);
-            return "{$first2}{$masked}{$domain}";
+        if ($len <= 2) {
+            $maskedLocal = $len > 1 ? $local[0] . str_repeat('*', $len - 1) : $local;
+        } elseif ($len <= 4) {
+            $maskedLocal = $local[0] . str_repeat('*', $len - 2) . substr($local, -1);
+        } else {
+            $maskedLocal = substr($local, 0, 2) . str_repeat('*', $len - 4) . substr($local, -2);
         }
+        return $maskedLocal . $domain;
+    }
 
-        return str_repeat('*', strlen($value));
+    private static function maskCityArea($value)
+    {
+        if (empty($value) || trim($value) === '')
+            return $value;
+
+        // Nimbbl API (mask_city_area): first 2 letters of each word shown, rest masked.
+        $parts = preg_split('/\s+/', trim($value), -1, PREG_SPLIT_NO_EMPTY);
+        if (empty($parts))
+            return str_repeat('*', strlen($value));
+
+        $maskedParts = array_map(function ($part) {
+            if (strlen($part) <= 2)
+                return $part;
+            return substr($part, 0, 2) . str_repeat('*', strlen($part) - 2);
+        }, $parts);
+
+        return implode(' ', $maskedParts);
     }
 
     private static function maskAddress($value)
@@ -365,7 +408,9 @@ class CentralMasker
             if (empty($part))
                 return $part;
             if (strlen($part) == 1)
-                return $part . "*";
+                return $part;
+            if (strlen($part) == 2)
+                return $part[0] . "*";
             // First char + asterisks
             return $part[0] . str_repeat('*', strlen($part) - 1);
         }, $parts);
@@ -393,30 +438,26 @@ class CentralMasker
         if (empty($value))
             return $value;
 
-        $atIndex = strpos($value, '@');
-        if ($atIndex !== false && $atIndex > 0 && $atIndex < strlen($value) - 1) {
-            $localPart = substr($value, 0, $atIndex);
-            $domain = substr($value, $atIndex);
+        // Nimbbl API (mask_vpa_id): URL-decode + validate; then tier by user length.
+        $processed = urldecode($value);
+        $atIndex = strpos($processed, '@');
+        if ($atIndex === false)
+            return $value;
+        if (!preg_match('/^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+$/', $processed))
+            return $value;
 
-            if (strlen($localPart) <= 4) {
-                return str_repeat('*', strlen($localPart)) . $domain;
-            }
+        $user = substr($processed, 0, $atIndex);
+        $domain = substr($processed, $atIndex); // includes '@'
+        $len = strlen($user);
 
-            $first2 = substr($localPart, 0, 2);
-            $last2 = substr($localPart, -2);
-            $masked = str_repeat('*', strlen($localPart) - 4);
-            return "{$first2}{$masked}{$last2}{$domain}";
+        if ($len <= 4) {
+            $maskedUser = $len > 2
+                ? $user[0] . str_repeat('*', $len - 2) . substr($user, -1)
+                : $user;
+        } else {
+            $maskedUser = substr($user, 0, 2) . str_repeat('*', $len - 4) . substr($user, -2);
         }
-
-        // If no @, treat as number
-        if (strlen($value) >= 4) {
-            $first2 = substr($value, 0, 2);
-            $last2 = substr($value, -2);
-            $masked = str_repeat('*', strlen($value) - 4);
-            return "{$first2}{$masked}{$last2}";
-        }
-
-        return str_repeat('*', strlen($value));
+        return $maskedUser . $domain;
     }
 
     private static function maskCardNumber($value)
@@ -425,22 +466,9 @@ class CentralMasker
             return $value;
         }
 
+        // Nimbbl API (mask_card): fixed "**** **** **** " + last 4.
         $cleaned = str_replace([' ', '-'], '', $value);
-        if (strlen($cleaned) >= 4 && is_numeric($cleaned)) {
-            $last4 = substr($cleaned, -4);
-            $maskLen = strlen($cleaned) - 4;
-            $masked = str_repeat('X', $maskLen);
-
-            // Format chunks of 4
-            $formattedMask = '';
-            for ($i = 0; $i < strlen($masked); $i += 4) {
-                $len = min(4, strlen($masked) - $i);
-                $formattedMask .= substr($masked, $i, $len) . " ";
-            }
-            return trim($formattedMask) . " " . $last4;
-        }
-
-        return "XXXX XXXX XXXX XXXX";
+        return "**** **** **** " . substr($cleaned, -4);
     }
 
     private static function maskAccountNumber($value)
@@ -463,15 +491,14 @@ class CentralMasker
         if (empty($value))
             return $value;
 
+        // Nimbbl API (mask_ifsc_code): <6 returned as-is; >=8 -> first4+*+last2; 6-7 -> first2+*+last2.
         $cleaned = strtoupper(trim($value));
-        if (strlen($cleaned) >= 6) {
-            $first4 = substr($cleaned, 0, 4);
-            $last2 = substr($cleaned, -2);
-            $masked = str_repeat('*', strlen($cleaned) - 6);
-            return "{$first4}{$masked}{$last2}";
-        }
-
-        return str_repeat('*', strlen($value));
+        $len = strlen($cleaned);
+        if ($len < 6)
+            return $value;
+        if ($len >= 8)
+            return substr($cleaned, 0, 4) . str_repeat('*', $len - 6) . substr($cleaned, -2);
+        return substr($cleaned, 0, 2) . str_repeat('*', $len - 4) . substr($cleaned, -2);
     }
 
     private static function maskPan($value)

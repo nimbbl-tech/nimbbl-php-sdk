@@ -1,25 +1,43 @@
 {
     "name": "nimbbl/nimbbl-sdk",
-    "description": "Nimbbl PHP client library",
+    "description": "Nimbbl PHP server-to-server SDK — orders, payments, pre-auth capture/void, refunds, and signed/encrypted webhook & callback verification.",
     "type": "library",
     "license": "MIT",
+    "keywords": [
+        "nimbbl",
+        "payments",
+        "payment-gateway",
+        "checkout",
+        "webhook",
+        "sdk"
+    ],
+    "homepage": "https://nimbbl.biz",
     "authors": [{
         "name": "Vijay Chauhan",
         "email": "vijay@nimbbl.biz"
     }],
+    "support": {
+        "email": "support@nimbbl.biz",
+        "docs": "https://nimbbl.biz/docs/api-reference/introduction/"
+    },
     "minimum-stability": "stable",
     "require": {
         "php": ">=7.4",
-        "rmccue/requests": "v1.8.0",
-        "ext-json": "*"
-    },
-    "autoload": {
-        "psr-4": {
-            "Nimbbl\\Api\\": "src/",
-            "Nimbbl\\Tests\\": "tests/"
-        }
+        "ext-json": "*",
+        "ext-openssl": "*",
+        "rmccue/requests": "^1.8"
     },
     "require-dev": {
         "phpunit/phpunit": "^9.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Nimbbl\\Api\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Nimbbl\\Tests\\": "tests/"
+        }
     }
 }

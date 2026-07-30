@@ -8,7 +8,16 @@ use Nimbbl\Api\Exception\NimbblException;
 
 /**
  * Shared helper for preparing request payloads with optional encryption.
- * Used by Order, Refund, Transaction, and CheckoutUtilities to avoid duplicated logic.
+ *
+ * Used by the services whose backend endpoints accept an encrypted payload:
+ * Order (create), Refund (initiate), Transaction (enquiry), CheckoutUtilities
+ * (list-banks / list-wallets), and Payment (capture / void).
+ *
+ * NOTE: encryption is intentionally applied ONLY on those endpoints. Other endpoints
+ * (e.g. get-card-details, validate-vpa, payment-link, initiate/complete-payment,
+ * addresses) do not route through this helper because the backend does not accept an
+ * `encrypted_payload` for them — sending one would be rejected. Add a service to the
+ * list above only once its backend endpoint supports encrypted payloads.
  */
 class EncryptedPayloadHelper
 {

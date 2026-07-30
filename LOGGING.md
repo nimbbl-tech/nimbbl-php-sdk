@@ -36,7 +36,16 @@ $logger->info(
 
 Context fields are prefixed to message in this order (when provided):
 
-`[APIVersion:...][APITag:...][URI:...][StatusCode:...][SubMerchantID:...][OrderID:...][TransactionID:...] message`
+`[APIVersion:...][APITag:...][URI:...][StatusCode:...][SubMerchantID:...][OrderID:...][InvoiceID:...][TransactionID:...][EventType:...] message`
 
 If `apiVersion` is not provided, logger tries to resolve it from `NimbblClient::getAPIVersion()`.
 If `apiTag` is not provided, logger falls back to component/function context.
+
+`InvoiceID` and `EventType` are added to webhook/callback verification log lines (via
+`SignatureVerifier`), so a verified webhook/callback line identifies the exact order,
+invoice, transaction, and event — e.g. `[APITag:Webhook] [SubMerchantID:1002479]
+[OrderID:o_...] [InvoiceID:inv_...] [TransactionID:o_...-...] [EventType:payment_authorized]`.
+
+**Passing context**: use the array form to avoid positional-argument mistakes —
+`$logger->info('msg', null, ['apiTag' => 'Webhook', 'orderId' => $id, 'eventType' => $ev]);`
+(keys: `subMerchantId`, `orderId`, `invoiceId`, `transactionId`, `apiVersion`, `apiTag`, `uri`, `statusCode`, `eventType`).

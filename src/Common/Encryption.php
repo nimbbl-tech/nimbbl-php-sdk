@@ -117,7 +117,7 @@ class Encryption
      * 3. Returns 32-byte key suitable for AES-256-GCM
      * 
      * ⚠️ NOTE: For improved security, consider using PBKDF2 instead:
-     * Current implementation: hash_hmac('sha256', $secret, '', true)
+     * Current implementation: iterated hash('sha256', $secret, true) (keyIterations times)
      * Recommended: hash_pbkdf2('sha256', $secret, $salt, 100000)
      * 
      * @param string $accessSecret Access secret
@@ -344,6 +344,7 @@ class Encryption
                 $decoded = json_decode($plaintext, true);
                 if (json_last_error() === JSON_ERROR_NONE) {
                     $logger->debug("Encryption::decrypt() - JSON decode successful, returning array");
+                    $logger->debug("Encryption::decrypt() - Decrypted payload (PII-masked): " . CentralMasker::maskBody($plaintext));
                     return $decoded;
                 } else {
                     $logger->debug("Encryption::decrypt() - JSON decode failed: " . json_last_error_msg() . ", returning plaintext");
@@ -351,6 +352,7 @@ class Encryption
             }
 
             $logger->debug("Encryption::decrypt() - Returning plaintext");
+            $logger->debug("Encryption::decrypt() - Decrypted payload (PII-masked): " . CentralMasker::maskBody($plaintext));
             return $plaintext;
         } catch (NimbblException $e) {
             throw $e;
@@ -364,16 +366,6 @@ class Encryption
                 $e
             );
         }
-    }
-
-    /**
-     * Get the encryption key (for debugging purposes only)
-     * 
-     * @return string Hex representation of encryption key
-     */
-    private function getEncryptionKeyHex(): string
-    {
-        return bin2hex($this->encryptionKey);
     }
 }
 
