@@ -52,8 +52,15 @@ class NimbblOrder extends NimbblEntity implements JsonSerializable
             $headers = $nimbblRequest->getRequestHeaders();
             $tokenArr = $nimbblRequest->generateToken();
             $headers['Authorization'] = 'Bearer ' . $tokenArr['token'];
-            // order_source is fixed by the creating SDK (anti-spoof); a caller cannot override it.
-            $attributes['order_source'] = \Nimbbl\Api\NimbblApi::ORDER_SOURCE;
+            // order_source identifies the INTEGRATION that created the order. The Magento,
+            // WooCommerce and OpenCart plugins all bundle this same SDK, so each one sets its
+            // own value; the SDK only fills in its own name when the caller has not set one.
+            if (!isset($attributes['order_source'])
+                || !is_string($attributes['order_source'])
+                || trim($attributes['order_source']) === '') {
+                $attributes['order_source'] = \Nimbbl\Api\NimbblApi::ORDER_SOURCE;
+            }
+            // order_source_version is SDK-controlled (anti-spoof); a caller cannot override it.
             $attributes['order_source_version'] = \Nimbbl\Api\NimbblApi::VERSION;
             $requestBody = json_encode($attributes);
             
