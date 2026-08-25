@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="vendor/autoload.php"
+         colors="true"
+         failOnRisky="true"
+         failOnWarning="true">
+    <testsuites>
+        <testsuite name="unit">
+            <file>tests/Common/CentralMaskerTest.php</file>
+            <file>tests/Common/EncryptionTest.php</file>
+            <file>tests/Common/EncryptedPayloadHelperTest.php</file>
+            <file>tests/Common/PayloadHelperUtilsTest.php</file>
+            <file>tests/Common/SignatureVerifierTest.php</file>
+            <file>tests/Log/LoggerTest.php</file>
+            <file>tests/RestClient/NimbblClientTest.php</file>
+            <file>tests/RestClient/RequestLogContextSanitizationTest.php</file>
+            <file>tests/RestClient/RequestEncrypted2xxErrorHandlingTest.php</file>
+            <file>tests/RestClient/RequestExceptionMappingTest.php</file>
+            <file>tests/RestClient/RequestTokenCacheTest.php</file>
+            <file>tests/Integration/PreAuthE2ETest.php</file>
+        </testsuite>
+    </testsuites>
+</phpunit>
