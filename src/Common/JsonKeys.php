@@ -107,6 +107,9 @@ class JsonKeys
     const ORDER_LINE_ITEMS = 'order_line_items';
     const PAYMENT_LINK_AMOUNT_PAID = 'payment_link_amount_paid';
     const PAYMENT_LINK_HASH = 'payment_link_hash';
+    // Payment-link webhooks nest signed fields under a "payment_link" object; the hash is "hash".
+    const PAYMENT_LINK = 'payment_link';
+    const HASH = 'hash';
     const PAYLOAD = 'payload';
     const CALLBACK = 'callback';
     const GLOBAL_HANDLE_CHECKOUT_RESPONSE = 'globalHandleCheckoutResponse';

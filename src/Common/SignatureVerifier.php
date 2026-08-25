@@ -223,18 +223,30 @@ class SignatureVerifier
             return $this->createResult(false, $failMsg);
         }
 
-        $signature = $this->tryGetString($attributes, JsonKeys::NIMBBL_SIGNATURE)
-            ?? $this->tryGetString($attributes, JsonKeys::SIGNATURE);
+        // Legacy (v3) payment-link webhooks nest the signed fields under a "payment_link" object
+        // (and name the hash "hash"). Read them from the nested object when absent at the top level.
+        $pl = (isset($attributes[JsonKeys::PAYMENT_LINK]) && is_array($attributes[JsonKeys::PAYMENT_LINK]))
+            ? $attributes[JsonKeys::PAYMENT_LINK]
+            : [];
 
-        $invoiceId = $this->tryGetString($attributes, JsonKeys::INVOICE_ID);
-        $status = $this->tryGetString($attributes, JsonKeys::STATUS);
-        $currency = $this->tryGetString($attributes, JsonKeys::CURRENCY);
+        $signature = $this->tryGetString($attributes, JsonKeys::NIMBBL_SIGNATURE)
+            ?? $this->tryGetString($attributes, JsonKeys::SIGNATURE)
+            ?? $this->tryGetString($pl, JsonKeys::NIMBBL_SIGNATURE)
+            ?? $this->tryGetString($pl, JsonKeys::SIGNATURE);
+
+        $invoiceId = $this->tryGetString($attributes, JsonKeys::INVOICE_ID) ?? $this->tryGetString($pl, JsonKeys::INVOICE_ID);
+        $status = $this->tryGetString($attributes, JsonKeys::STATUS) ?? $this->tryGetString($pl, JsonKeys::STATUS);
+        $currency = $this->tryGetString($attributes, JsonKeys::CURRENCY) ?? $this->tryGetString($pl, JsonKeys::CURRENCY);
 
         $amountPaid = $this->tryGetDouble($attributes, JsonKeys::AMOUNT_PAID)
             ?? $this->tryGetDouble($attributes, JsonKeys::PAYMENT_LINK_AMOUNT_PAID)
+            ?? $this->tryGetDouble($pl, JsonKeys::AMOUNT_PAID)
+            ?? $this->tryGetDouble($pl, JsonKeys::PAYMENT_LINK_AMOUNT_PAID)
             ?? 0.0;
 
-        $paymentLinkHash = $this->tryGetString($attributes, JsonKeys::PAYMENT_LINK_HASH);
+        $paymentLinkHash = $this->tryGetString($attributes, JsonKeys::PAYMENT_LINK_HASH)
+            ?? $this->tryGetString($pl, JsonKeys::PAYMENT_LINK_HASH)
+            ?? $this->tryGetString($pl, JsonKeys::HASH);
 
         $missing = [];
         if (empty($invoiceId))
