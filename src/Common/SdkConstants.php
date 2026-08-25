@@ -8,6 +8,11 @@ class SdkConstants
     const SDK_NAME = 'Nimbbl PHP SDK';
     const SDK_VERSION = '4.1.0';
 
+    // Default order_source, used only when the caller does not set one. Integrations that
+    // bundle this SDK (Magento, WooCommerce, OpenCart plugins) pass their own order_source
+    // to create-order so orders stay attributable to the storefront that produced them.
+    const ORDER_SOURCE = 'php-sdk';
+
     // Signature Constants
     const SIGNATURE_VERSION_V3 = 'v3';
 

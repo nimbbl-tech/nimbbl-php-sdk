@@ -30,6 +30,10 @@ class Order
     {
         $logger = Logger::getInstance();
         $logger->debug("CreateOrder - Encryption enabled: " . (NimbblClient::isEncryptPayloadEnabled() ? "True" : "False"));
+
+        // Stamped BEFORE preparePayload so both fields land inside the ciphertext when
+        // payload encryption is enabled.
+        $attributes = $this->applyOrderSource($attributes);
         $attributes = EncryptedPayloadHelper::preparePayload($attributes, 'order');
         $request = new Request();
         return $request->request(ApiConstants::HTTP_POST, ApiConstants::ORDER_CREATE, $attributes, $token, SdkConstants::COMPONENT_ORDER);
@@ -59,6 +63,32 @@ class Order
     {
         $request = new Request();
         return $request->request(ApiConstants::HTTP_GET, ApiConstants::ORDER_GET, [JsonKeys::INVOICE_ID => $invoiceId], $token, SdkConstants::COMPONENT_ORDER);
+    }
+
+    /**
+     * Stamp the order_source pair on a create-order payload.
+     *
+     * order_source identifies the INTEGRATION that created the order. The Magento,
+     * WooCommerce and OpenCart plugins all bundle this same SDK, so each one sets its own
+     * value; the SDK only fills in its own name when the caller has not set a usable one.
+     *
+     * order_source_version is always SDK-controlled (anti-spoof): a caller cannot
+     * misreport which SDK build made the call.
+     *
+     * @param array $attributes
+     * @return array
+     */
+    private function applyOrderSource($attributes)
+    {
+        if (!isset($attributes[JsonKeys::ORDER_SOURCE])
+            || !is_string($attributes[JsonKeys::ORDER_SOURCE])
+            || trim($attributes[JsonKeys::ORDER_SOURCE]) === '') {
+            $attributes[JsonKeys::ORDER_SOURCE] = SdkConstants::ORDER_SOURCE;
+        }
+
+        $attributes[JsonKeys::ORDER_SOURCE_VERSION] = SdkConstants::SDK_VERSION;
+
+        return $attributes;
     }
 
 }
